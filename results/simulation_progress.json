@@ -1,0 +1,6 @@
+{
+  "done": 14400,
+  "total": 14400,
+  "mode": "severe_random_walk",
+  "controller": "oracle"
+}
