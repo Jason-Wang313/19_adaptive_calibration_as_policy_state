@@ -47,7 +47,7 @@ Workshop / revise. The mechanism and falsification target are clear enough for a
 `https://github.com/Jason-Wang313/19_adaptive_calibration_as_policy_state`
 
 ## 13. Visible Desktop PDF copy status
-`pending orchestrator copy`
+`copied to C:\Users\wangz\OneDrive\Desktop\19.pdf by orchestrator copy`
 
 ## Verification summary
 - Literature synthesis rerun from the cached 6,710-row matrix.
@@ -57,3 +57,9 @@ Workshop / revise. The mechanism and falsification target are clear enough for a
 - Direct `pdflatex`, `bibtex`, `pdflatex`, `pdflatex` build succeeded with final PDF at `paper/main.pdf`.
 - Final PDF copied to `C:/Users/wangz/Downloads/19.pdf`.
 - Public GitHub repository created and pushed at `https://github.com/Jason-Wang313/19_adaptive_calibration_as_policy_state`.
+
+## Orchestrator Desktop Copy
+
+Checked: 2026-06-11 16:13:28 +01:00
+Downloads PDF: C:/Users/wangz/Downloads/19.pdf
+Result: copy script exit 0 log C:\Users\wangz\robotics_60_paper_batch\logs\desktop_copy_19_20260611_161327.log
