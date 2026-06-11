@@ -56,3 +56,4 @@ Workshop / revise. The mechanism and falsification target are clear enough for a
 - Paper regenerated from fresh results.
 - Direct `pdflatex`, `bibtex`, `pdflatex`, `pdflatex` build succeeded with final PDF at `paper/main.pdf`.
 - Final PDF copied to `C:/Users/wangz/Downloads/19.pdf`.
+- Public GitHub repository created and pushed at `https://github.com/Jason-Wang313/19_adaptive_calibration_as_policy_state`.

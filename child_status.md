@@ -1,23 +1,24 @@
 # Child Status
 
 ## Current Stage
-GitHub publish.
+Complete.
 
 ## Latest Actions
 - Added `README.md` and `requirements.txt`.
 - Wrote `docs/final_audit.md`.
-- Confirmed `gh auth status` is authenticated as `Jason-Wang313`.
-- Worktree contains only this paper run's untracked artifacts.
+- Committed repository contents.
+- Created public GitHub repo `Jason-Wang313/19_adaptive_calibration_as_policy_state`.
+- Pushed local `master` to `origin/master`.
+- Patched final audit/status to record push success.
 
 ## Commands Run
-- `Get-Content ... github ... yeet/SKILL.md`
-- `Get-Content ... github ... github/SKILL.md`
-- `git status -sb; exit 0`
-- `git diff --stat; exit 0`
-- `gh auth status; if ($LASTEXITCODE -ne 0) { Write-Output "gh auth status failed with exit $LASTEXITCODE" }; exit 0`
-- `apply_patch` added `README.md`, `requirements.txt`, and `docs/final_audit.md`.
+- `git add -A; ... git commit -m "Add adaptive calibration policy-state paper"; ...; exit 0`
+- `git remote -v; exit 0`
+- `gh repo view Jason-Wang313/19_adaptive_calibration_as_policy_state --json nameWithOwner,url,visibility; ...; exit 0`
+- `gh repo create 19_adaptive_calibration_as_policy_state --public --source=. --remote=origin --push; ...; exit 0`
+- `apply_patch` updated `docs/final_audit.md` and rewrote `child_status.md`.
 
-## Build Commands Already Completed
+## Build Commands Completed
 - `python scripts\synthesize_literature.py ...; exit 0`
 - `python experiments\check_formal_claim.py ...; exit 0`
 - `python experiments\run_calibration_state_sim.py ...; exit 0`
@@ -26,7 +27,8 @@ GitHub publish.
 - Copied `paper\main.pdf` to `C:\Users\wangz\Downloads\19.pdf`.
 
 ## Failures
-- None so far.
+- `gh repo view Jason-Wang313/19_adaptive_calibration_as_policy_state` initially failed because the repo did not exist yet.
 
 ## Recovery Steps
+- Created the missing public repo with `gh repo create ... --public --source=. --remote=origin --push`.
 - Reused cached literature collection because it exceeds required coverage and avoids unnecessary recollection.
