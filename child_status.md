@@ -32,3 +32,7 @@ Complete.
 ## Recovery Steps
 - Created the missing public repo with `gh repo create ... --public --source=. --remote=origin --push`.
 - Reused cached literature collection because it exceeds required coverage and avoids unnecessary recollection.
+
+Exit code: 0
+End time: 2026-06-11 16:13:27 +01:00
+PDF exists: True
