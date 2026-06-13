@@ -28,17 +28,18 @@ These make online estimation and adaptation less novel, but they leave open the 
 There is one modest formal claim. In a one-step linear action-observation system, two hidden calibration maps can yield the same observation-goal pair but require different optimal actions. A memoryless policy omitting calibration state must choose the same action and cannot be optimal for both, while a calibration-state policy can. `docs/formal_claim_check.md` verifies the arithmetic: best same-action expected squared error is 0.5, calibration-state expected squared error is 0.0. No global stability, observability, or real-robot theorem is claimed.
 
 ## 8. Strongest evidence
-The strongest evidence is the reproducible 14,400-rollout 2D hidden-calibration drift simulation. CSC nearly matches oracle calibration under moving drift and beats the privileged frozen-start calibration baseline when calibration changes during the rollout:
+The strongest evidence is the reproducible 14,400-rollout 2D hidden-calibration drift simulation plus a 2,400-rollout v2 Windowed SysID baseline. CSC nearly matches oracle calibration under moving drift and beats the privileged frozen-start calibration baseline when calibration changes during the rollout:
 - Abrupt bumps: CSC 0.962 success vs. frozen-start 0.538.
 - Severe random walk: CSC 0.977 success vs. frozen-start 0.898.
 - Random walk: CSC 0.970 success vs. frozen-start 0.947.
 - Static: CSC 0.970 success vs. frozen-start 0.973, correctly showing little benefit when a known calibration remains fixed.
+- Windowed SysID: 0.867 success under abrupt bumps and 0.948 under severe random walk, showing a strong online system-identification baseline recovers much of the benefit but does not erase CSC in the hardest drift modes.
 
 ## 9. Biggest weaknesses
-The evidence is simulation-only and uses a local linear calibration abstraction. The estimator is hand-designed RLS rather than a learned recurrent policy. The paper does not compare against strong end-to-end recurrent neural policies that may infer an equivalent latent state. The literature sweep is broad and hostile but automated. CSC may fail when calibration is unobservable from task residuals, changes too quickly, or becomes ill-conditioned.
+The evidence is simulation-only and uses a local linear calibration abstraction. The estimator is hand-designed RLS rather than a learned recurrent policy. The v2 baseline shows that a different online system-identification estimator can recover much of the same benefit, narrowing the contribution to the calibration-state interface. The paper still does not compare against strong end-to-end recurrent neural policies that may infer an equivalent latent state. The literature sweep is broad and hostile but automated. CSC may fail when calibration is unobservable from task residuals, changes too quickly, or becomes ill-conditioned.
 
 ## 10. Paper-readiness judgment
-Workshop / revise. The mechanism and falsification target are clear enough for a focused workshop paper, but a main-conference submission would need real-robot evidence, stronger learned-policy baselines, and deeper manual treatment of the closest visual-servoing and online-calibration priors.
+Workshop-only / strong-revise. The mechanism and falsification target are clear enough for a focused workshop paper, and the v2 baseline makes the estimator boundary more honest. A main-conference submission would need real-robot evidence, stronger learned-policy baselines, and deeper manual treatment of the closest visual-servoing and online-calibration priors.
 
 ## 11. Exact Downloads PDF path
 `C:/Users/wangz/Downloads/19.pdf`
@@ -47,19 +48,23 @@ Workshop / revise. The mechanism and falsification target are clear enough for a
 `https://github.com/Jason-Wang313/19_adaptive_calibration_as_policy_state`
 
 ## 13. Visible Desktop PDF copy status
-`copied to C:\Users\wangz\OneDrive\Desktop\19.pdf by orchestrator copy`
+Absent after v2 hardening cleanup. The canonical PDF is only `C:/Users/wangz/Downloads/19.pdf`.
 
 ## Verification summary
 - Literature synthesis rerun from the cached 6,710-row matrix.
 - Formal ambiguity check rerun.
-- Full simulation rerun.
+- Full simulation rerun with 14,400 main rollouts and the 2,400-rollout Windowed SysID baseline.
 - Paper regenerated from fresh results.
-- Direct `pdflatex`, `bibtex`, `pdflatex`, `pdflatex` build succeeded with final PDF at `paper/main.pdf`.
-- Final PDF copied to `C:/Users/wangz/Downloads/19.pdf`.
+- Direct `pdflatex`, `bibtex`, `pdflatex`, `pdflatex` build succeeded.
+- Final v2 PDF copied to `C:/Users/wangz/Downloads/19.pdf` and is 228,400 bytes.
+- PDF text extraction verified the visible `Submission-hardening version: v2` note and Windowed SysID table.
+- Tracked `paper/main.pdf` was removed after the canonical Downloads copy was verified.
 - Public GitHub repository created and pushed at `https://github.com/Jason-Wang313/19_adaptive_calibration_as_policy_state`.
+- Submission-hardening v2 is committed and pushed on `origin/master`.
 
 ## Orchestrator Desktop Copy
 
 Checked: 2026-06-11 16:13:28 +01:00
 Downloads PDF: C:/Users/wangz/Downloads/19.pdf
 Result: copy script exit 0 log C:\Users\wangz\robotics_60_paper_batch\logs\desktop_copy_19_20260611_161327.log
+V2 cleanup removed the Desktop copy; it is not canonical.

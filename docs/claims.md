@@ -7,14 +7,17 @@
 ## Supported By Runnable Evidence If Experiments Pass
 - In the 2D drift-control testbed, explicit calibration-state control should improve success, final error, and path efficiency over offline calibration, robust low-gain control, and a simple residual-bias adapter.
 - The advantage should be largest under abrupt or random-walk drift and smaller under static mild miscalibration.
+- A v2 Windowed SysID baseline that estimates the calibration map from the most recent 14 transitions recovers much of the benefit, but remains below CSC under abrupt bumps (0.867 vs. 0.962 success) and severe random walk (0.948 vs. 0.977).
 
 ## Boundary Claims
 - CSC helps only when the hidden calibration map is at least locally observable from recent transitions.
 - CSC is not a replacement for hand-eye calibration, kinematic calibration, or visual servoing; it changes how their outputs enter the policy loop.
 - CSC does not prove that all robot adaptation should be physically factorized, only that calibration drift is a strong case where factorization matters.
+- The v2 result supports the policy-state interface more strongly than the particular RLS estimator.
 
 ## Unsupported Claims To Avoid
 - Do not claim real-robot validation.
 - Do not claim superiority over all recurrent learned policies.
 - Do not claim novelty for online calibration itself.
+- Do not claim that RLS is uniquely responsible for the gain over frozen calibration.
 - Do not claim global observability or stability beyond the simplified setting.
