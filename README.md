@@ -4,10 +4,10 @@ This repository contains the paper-19 child-agent output for **Adaptive Calibrat
 
 ## Main Artifacts
 - `paper/main.tex`: anonymous ICLR-style manuscript.
-- `paper/main.pdf`: compiled paper.
+- `C:/Users/wangz/Downloads/19.pdf`: canonical compiled paper for the batch.
 - `docs/related_work_matrix.csv`: 6,710-paper landscape matrix with 300 serious skims, 225 structured deep reads, and 100 hostile priors.
 - `docs/literature_map.md`, `docs/hostile_prior_work.md`, `docs/novelty_boundary_map.md`, `docs/novelty_decision.md`: novelty and literature analysis.
-- `results/aggregate_results.csv`, `results/calibration_state_evidence.md`: simulation evidence summary.
+- `results/aggregate_results.csv`, `results/windowed_context_baseline.csv`, `results/calibration_state_evidence.md`: simulation evidence summary and v2 hostile baseline.
 - `docs/final_audit.md`: final readiness audit.
 
 ## Reproduce
@@ -50,5 +50,8 @@ pdflatex -interaction=nonstopmode -halt-on-error main.tex
 pdflatex -interaction=nonstopmode -halt-on-error main.tex
 ```
 
+The local build creates `paper/main.pdf`; the hardened repo removes that build
+artifact from git after copying the canonical PDF to Downloads.
+
 ## Evidence Scope
-The empirical evidence is simulation-only: a deterministic 2D hidden calibration drift testbed with 14,400 rollouts. The strongest supported claim is that explicit calibration state helps when the hidden action-observation map changes during a rollout and remains locally observable from recent residuals. The repo does not claim real-robot validation or dominance over all learned recurrent policies.
+The empirical evidence is simulation-only: a deterministic 2D hidden calibration drift testbed with 14,400 main rollouts plus a 2,400-rollout v2 Windowed SysID baseline. The strongest supported claim is that explicit calibration state helps when the hidden action-observation map changes during a rollout and remains locally observable from recent residuals. The repo does not claim real-robot validation, RLS-specific novelty, or dominance over learned recurrent policies.

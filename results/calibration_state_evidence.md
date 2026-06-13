@@ -44,3 +44,14 @@ Episodes per mode/controller: 600. Maximum steps: 80. Success threshold: 0.04.
 - The frozen-start baseline is intentionally privileged: it knows the initial calibration matrix but cannot update after drift.
 - CSC is expected to beat frozen-start most clearly when the calibration map changes during the rollout.
 - If CSC fails in a mode, that is evidence that the drift is too fast, poorly conditioned, or insufficiently observable from task residuals.
+
+## V2 Windowed Online System-ID Baseline
+
+Windowed SysID fits the local action-observation map from the most recent 14 transitions and uses the same inverse-control interface as CSC. This is a stronger hostile baseline than residual-bias correction because it also carries a calibration estimate inside the policy loop.
+
+| Mode | Frozen start | Windowed SysID | CSC | Oracle |
+| --- | ---: | ---: | ---: | ---: |
+| static | 0.973 | 0.967 | 0.970 | 0.973 |
+| random walk | 0.947 | 0.962 | 0.970 | 0.973 |
+| abrupt bump | 0.538 | 0.867 | 0.962 | 0.967 |
+| severe random walk | 0.898 | 0.948 | 0.977 | 0.978 |

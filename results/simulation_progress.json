@@ -1,6 +1,7 @@
 {
-  "done": 14400,
-  "total": 14400,
+  "done": 2400,
+  "total": 2400,
   "mode": "severe_random_walk",
-  "controller": "oracle"
+  "controller": "windowed_sysid",
+  "stage": "windowed_context_baseline"
 }

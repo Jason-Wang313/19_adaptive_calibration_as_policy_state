@@ -22,6 +22,8 @@ SUMMARY_MD = RESULTS / "calibration_state_evidence.md"
 PLOT_SUCCESS = RESULTS / "success_by_mode.pdf"
 PLOT_ERROR = RESULTS / "final_error_by_mode.pdf"
 PROGRESS = RESULTS / "simulation_progress.json"
+WINDOWED_CSV = RESULTS / "windowed_context_baseline.csv"
+WINDOWED_TABLE = RESULTS / "windowed_context_table.tex"
 
 
 MAX_STEPS = 80
@@ -172,6 +174,36 @@ class ResidualBias:
         self.bias = clip_norm(self.bias, 0.08)
 
 
+class WindowedSysID:
+    def __init__(self, window: int = 14, ridge: float = 2e-3) -> None:
+        self.window = window
+        self.ridge = ridge
+        self.u_hist: list[np.ndarray] = []
+        self.dy_hist: list[np.ndarray] = []
+        self.f_hat = np.eye(2)
+
+    def update(self, u: np.ndarray, dy: np.ndarray) -> None:
+        if float(np.linalg.norm(u)) < 1e-6:
+            return
+        self.u_hist.append(np.array(u, dtype=float, copy=True))
+        self.dy_hist.append(np.array(dy, dtype=float, copy=True))
+        self.u_hist = self.u_hist[-self.window :]
+        self.dy_hist = self.dy_hist[-self.window :]
+        if len(self.u_hist) < 3:
+            return
+        u_mat = np.vstack(self.u_hist)
+        dy_mat = np.vstack(self.dy_hist)
+        lhs = u_mat.T @ u_mat + self.ridge * np.eye(2)
+        beta = np.linalg.solve(lhs, u_mat.T @ dy_mat)
+        self.f_hat = beta.T
+
+    def condition(self) -> float:
+        try:
+            return float(np.linalg.cond(self.f_hat))
+        except np.linalg.LinAlgError:
+            return float("inf")
+
+
 def make_initial_state(seed: int) -> tuple[np.ndarray, list[np.ndarray]]:
     rng = np.random.default_rng(seed)
     y0 = rng.uniform(-0.55, 0.55, size=2)
@@ -195,6 +227,7 @@ def run_episode(mode: str, controller: str, episode_idx: int) -> dict:
     initial_f = drift.matrix().copy()
     rls = RLSCalibration()
     residual = ResidualBias()
+    windowed = WindowedSysID()
 
     total_path = 0.0
     total_command = 0.0
@@ -231,6 +264,11 @@ def run_episode(mode: str, controller: str, episode_idx: int) -> dict:
             inv_hat = regularized_inverse(used_f_hat, 1e-3)
             u = clip_norm(inv_hat @ desired, MAX_COMMAND)
             max_condition = max(max_condition, rls.condition())
+        elif controller == "windowed_sysid":
+            used_f_hat = windowed.f_hat.copy()
+            inv_hat = regularized_inverse(used_f_hat, 1e-3)
+            u = clip_norm(inv_hat @ desired, MAX_COMMAND)
+            max_condition = max(max_condition, windowed.condition())
         elif controller == "oracle":
             used_f_hat = current_f
             u = clip_norm(regularized_inverse(current_f, 1e-5) @ desired, MAX_COMMAND)
@@ -245,6 +283,9 @@ def run_episode(mode: str, controller: str, episode_idx: int) -> dict:
         if controller == "calibration_state":
             rls.update(u, dy)
             calibration_error_trace.append(float(np.linalg.norm(rls.f_hat - current_f, ord="fro")))
+        elif controller == "windowed_sysid":
+            windowed.update(u, dy)
+            calibration_error_trace.append(float(np.linalg.norm(windowed.f_hat - current_f, ord="fro")))
         elif controller == "residual_bias":
             residual.update(u, dy)
 
@@ -411,6 +452,75 @@ def write_summary(agg: list[dict]) -> None:
     SUMMARY_MD.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def run_windowed_context_baseline() -> list[dict]:
+    rows: list[dict] = []
+    total = len(MODES) * N_EPISODES
+    done = 0
+    for mode in MODES:
+        for episode_idx in range(N_EPISODES):
+            rows.append(run_episode(mode, "windowed_sysid", episode_idx))
+            done += 1
+        PROGRESS.write_text(
+            json.dumps(
+                {
+                    "done": done,
+                    "total": total,
+                    "mode": mode,
+                    "controller": "windowed_sysid",
+                    "stage": "windowed_context_baseline",
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        print(f"[sim] windowed_sysid / {mode}: {done}/{total}")
+    return aggregate(rows)
+
+
+def write_windowed_context_outputs(agg: list[dict], windowed_agg: list[dict]) -> None:
+    combined = {(row["mode"], row["controller"]): row for row in agg}
+    for row in windowed_agg:
+        combined[(row["mode"], row["controller"])] = row
+
+    with WINDOWED_CSV.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(windowed_agg[0].keys()))
+        writer.writeheader()
+        writer.writerows(windowed_agg)
+
+    table_lines = [
+        r"\begin{table}[t]",
+        r"\caption{V2 online system-identification baseline. Windowed SysID fits the local action-observation map from the most recent 14 transitions and feeds the fitted map to the same inverse controller. It is a hostile baseline for the estimator, but it still carries calibration as policy state.}",
+        r"\label{tab:windowed-sysid}",
+        r"\centering",
+        r"\begin{tabular}{lrrrr}",
+        r"\toprule",
+        r"Mode & Frozen start & Windowed SysID & CSC & Oracle \\",
+        r"\midrule",
+    ]
+    md_lines = [
+        "",
+        "## V2 Windowed Online System-ID Baseline",
+        "",
+        "Windowed SysID fits the local action-observation map from the most recent 14 transitions and uses the same inverse-control interface as CSC. This is a stronger hostile baseline than residual-bias correction because it also carries a calibration estimate inside the policy loop.",
+        "",
+        "| Mode | Frozen start | Windowed SysID | CSC | Oracle |",
+        "| --- | ---: | ---: | ---: | ---: |",
+    ]
+    for mode in MODES:
+        frozen = combined[(mode, "frozen_start_calibration")]["success_rate"]
+        windowed = combined[(mode, "windowed_sysid")]["success_rate"]
+        csc = combined[(mode, "calibration_state")]["success_rate"]
+        oracle = combined[(mode, "oracle")]["success_rate"]
+        label = mode.replace("_", " ")
+        table_lines.append(f"{label} & {frozen:.3f} & {windowed:.3f} & {csc:.3f} & {oracle:.3f} \\\\")
+        md_lines.append(f"| {label} | {frozen:.3f} | {windowed:.3f} | {csc:.3f} | {oracle:.3f} |")
+    table_lines.extend([r"\bottomrule", r"\end{tabular}", r"\end{table}"])
+    WINDOWED_TABLE.write_text("\n".join(table_lines) + "\n", encoding="utf-8")
+
+    existing = SUMMARY_MD.read_text(encoding="utf-8")
+    SUMMARY_MD.write_text(existing.rstrip() + "\n" + "\n".join(md_lines) + "\n", encoding="utf-8")
+
+
 def main() -> None:
     rows: list[dict] = []
     total = len(MODES) * len(CONTROLLERS) * N_EPISODES
@@ -439,8 +549,11 @@ def main() -> None:
     plot_bars(agg, "success_rate", "success rate", PLOT_SUCCESS)
     plot_bars(agg, "final_error_mean", "mean final error", PLOT_ERROR)
     write_summary(agg)
+    windowed_agg = run_windowed_context_baseline()
+    write_windowed_context_outputs(agg, windowed_agg)
     print(f"[sim] wrote {EPISODE_CSV}")
     print(f"[sim] wrote {AGG_CSV}")
+    print(f"[sim] wrote {WINDOWED_CSV}")
     print(f"[sim] wrote {PLOT_SUCCESS}")
     print(f"[sim] wrote {PLOT_ERROR}")
 

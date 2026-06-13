@@ -3,11 +3,11 @@
 1. **This is just online calibration.**
    Response: the paper must emphasize that online calibration is prior art; the new part is the policy-state interface and the impossibility/evidence that omitting this state creates action ambiguity.
 2. **This is just system identification or latent context.**
-   Response: CSC is a physical calibration channel with a defined action-observation Jacobian and update rule; generic latent context is a hostile baseline/related class, not the claimed novelty.
+   Response: CSC is a physical calibration channel with a defined action-observation Jacobian and update rule; generic latent context is a hostile related class, not the claimed novelty. The v2 Windowed SysID baseline makes this explicit: another online estimator recovers much of the benefit, so the claim is the policy-state interface rather than RLS uniqueness.
 3. **Visual servoing already handles calibration error.**
    Response: servoing closes feedback around error but may not represent the hidden action map; experiments should include feedback baselines and state when servoing is sufficient.
 4. **The method is a hand-designed estimator, not a learning paper.**
-   Response: the paper should be framed as embodied policy-state design; ICLR relevance comes from state representation for robot policies and sim-to-real adaptation.
+   Response: the paper should be framed as embodied policy-state design; ICLR relevance comes from state representation for robot policies and sim-to-real adaptation. The v2 baseline strengthens this framing by showing that estimator choice is not the whole contribution.
 5. **Toy simulation is too small.**
    Response: the testbed supports the mechanism and formal claim; paper-readiness may be workshop/revise unless larger hardware or learned-policy experiments are added.
 6. **Domain randomization can cover this.**

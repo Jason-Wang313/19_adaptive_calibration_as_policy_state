@@ -1,0 +1,15 @@
+\begin{table}[t]
+\caption{V2 online system-identification baseline. Windowed SysID fits the local action-observation map from the most recent 14 transitions and feeds the fitted map to the same inverse controller. It is a hostile baseline for the estimator, but it still carries calibration as policy state.}
+\label{tab:windowed-sysid}
+\centering
+\begin{tabular}{lrrrr}
+\toprule
+Mode & Frozen start & Windowed SysID & CSC & Oracle \\
+\midrule
+static & 0.973 & 0.967 & 0.970 & 0.973 \\
+random walk & 0.947 & 0.962 & 0.970 & 0.973 \\
+abrupt bump & 0.538 & 0.867 & 0.962 & 0.967 \\
+severe random walk & 0.898 & 0.948 & 0.977 & 0.978 \\
+\bottomrule
+\end{tabular}
+\end{table}

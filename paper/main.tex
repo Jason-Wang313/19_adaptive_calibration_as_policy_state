@@ -18,8 +18,11 @@ Anonymous Institution\\
 \begin{document}
 \maketitle
 
+\noindent\textbf{Submission-hardening version: v2.}
+This revision adds a hostile Windowed SysID baseline that estimates the action-observation map from the most recent transitions and uses the same inverse-control interface.
+
 \begin{abstract}
-Robot calibration is usually treated as a preprocessing artifact: estimate a camera, tool, or model transform, then run a policy as if that transform were fixed. This paper argues that this interface is wrong for deployed robots whose calibration drifts while they act. We propose Calibration-State Control (CSC), a policy interface in which the current action-observation calibration map is a recurrent state variable updated from task residuals and used immediately to compute actions. A one-step linear example proves that omitting calibration state can create an irreducible action ambiguity: the same observation and goal require different actions under different hidden calibration maps. In a reproducible 2D waypoint-tracking testbed with 14,400 rollouts, CSC matches frozen initial calibration in the static case (0.970 vs. 0.973 success) and improves over it under nonstationary drift, from 0.538 to 0.962 success under abrupt bumps and from 0.898 to 0.977 under severe random walk. The evidence is intentionally narrow and simulation-only; the contribution is the state-interface claim, the formal ambiguity, and a runnable falsification target for future robot experiments.
+Robot calibration is usually treated as a preprocessing artifact: estimate a camera, tool, or model transform, then run a policy as if that transform were fixed. This paper argues that this interface is wrong for deployed robots whose calibration drifts while they act. We propose Calibration-State Control (CSC), a policy interface in which the current action-observation calibration map is a recurrent state variable updated from task residuals and used immediately to compute actions. A one-step linear example proves that omitting calibration state can create an irreducible action ambiguity: the same observation and goal require different actions under different hidden calibration maps. In a reproducible 2D waypoint-tracking testbed with 14,400 main rollouts plus a 2,400-rollout v2 baseline, CSC matches frozen initial calibration in the static case (0.970 vs. 0.973 success) and improves over it under nonstationary drift, from 0.538 to 0.962 success under abrupt bumps and from 0.898 to 0.977 under severe random walk. A hostile Windowed SysID baseline also carries an online calibration map and reaches 0.867 and 0.948 success in those two drift modes, narrowing the claim from estimator novelty to policy-state interface. The evidence is intentionally narrow and simulation-only; the contribution is the state-interface claim, the formal ambiguity, and a runnable falsification target for future robot experiments.
 \end{abstract}
 
 \section{Introduction}
@@ -81,7 +84,7 @@ The controller exposes the condition number of $\hat F_t$ as part of policy stat
 We simulate 2D waypoint tracking in observed coordinates. Each episode has four waypoint goals over 80 steps. The hidden calibration map is a rotation, anisotropic scale, and shear. Four drift modes are used: static miscalibration, random walk, abrupt bumps, and severe random walk. Observation noise is Gaussian with standard deviation 0.0012. Every controller receives the same waypoint and drift seeds.
 
 \paragraph{Baselines.}
-Nominal offline assumes $F=I$. Robust low gain also assumes $F=I$ but moves conservatively. Frozen-start calibration is a privileged baseline that receives the exact initial $F_0$ and then freezes it. Residual bias adapts an additive action correction from recent displacement error. Oracle receives the true $F_t$ at each step. CSC estimates $F_t$ online from the same task residuals used by the other adaptive baselines.
+Nominal offline assumes $F=I$. Robust low gain also assumes $F=I$ but moves conservatively. Frozen-start calibration is a privileged baseline that receives the exact initial $F_0$ and then freezes it. Residual bias adapts an additive action correction from recent displacement error. Windowed SysID, added in v2, fits a local action-observation map from the most recent 14 transitions and uses the same inverse-control interface as CSC. Oracle receives the true $F_t$ at each step. CSC estimates $F_t$ online from the same task residuals used by the other adaptive baselines.
 
 \begin{table}[t]
 \caption{Waypoint tracking under hidden calibration drift. Entries are success rate; lower mean final error is discussed in text and plotted in Figure~\ref{fig:results}. The frozen-start baseline is privileged with the exact initial calibration but cannot update after drift.}
@@ -103,6 +106,8 @@ Oracle calibration & 0.973 & 0.973 & 0.967 & 0.978 \\
 }
 \end{table}
 
+\input{../results/windowed_context_table}
+
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.49\linewidth]{figures/success_by_mode.pdf}
@@ -114,16 +119,18 @@ Oracle calibration & 0.973 & 0.973 & 0.967 & 0.978 \\
 \paragraph{Results.}
 Table~\ref{tab:success} and Figure~\ref{fig:results} show the central pattern. In static episodes, privileged frozen-start calibration is marginally better than CSC (0.973 vs. 0.970), which is the correct outcome: if calibration is fixed and known, a frozen estimate is enough. Under random-walk drift, CSC improves success over frozen-start calibration (0.970 vs. 0.947). Under abrupt bumps, the offline assumption breaks sharply: frozen-start reaches 0.538 success while CSC reaches 0.962. Under severe random walk, CSC reaches 0.977 success versus 0.898 for frozen-start. Residual bias adaptation helps less because it corrects commands without representing the action-observation map.
 
+Table~\ref{tab:windowed-sysid} adds the strongest recoverable v2 baseline. Windowed SysID is not a straw baseline: it estimates a calibration map online and conditions actions on that map. It improves over frozen-start calibration under every moving-drift mode, reaching 0.867 success under abrupt bumps and 0.948 under severe random walk. CSC still does better in those modes, but the more important conclusion is narrower: the evidence favors keeping calibration inside the policy state, while the exact estimator remains an implementation choice that should be tested against learned recurrent and system-identification alternatives.
+
 \paragraph{What the evidence supports.}
 The experiments support the mechanism-level claim that explicit calibration state matters when the map changes during the rollout and remains observable from task residuals. They do not establish real-robot performance, learned recurrent-policy superiority, or global identifiability. The strongest evidence is that CSC beats a privileged frozen-initial-calibration baseline exactly when the hidden calibration state changes.
 
 \section{Limitations}
 
-This paper is intentionally conservative. The environment is a local linear abstraction of calibration drift, not a real robot. The estimator is hand-designed, not learned. The comparison does not include end-to-end recurrent neural policies that might infer an equivalent latent state. The literature sweep is broad and hostile but automated from metadata and abstracts; it should guide human review, not replace it. CSC can also fail when the calibration map is unobservable, changes faster than the estimator, or becomes ill-conditioned.
+This paper is intentionally conservative. The environment is a local linear abstraction of calibration drift, not a real robot. The estimator is hand-designed, not learned. The v2 Windowed SysID result shows that a different online system-identification estimator can recover much of the same benefit, so this paper should not be read as an RLS-specific algorithmic win. The comparison still does not include end-to-end recurrent neural policies that might infer an equivalent latent state. The literature sweep is broad and hostile but automated from metadata and abstracts; it should guide human review, not replace it. CSC can also fail when the calibration map is unobservable, changes faster than the estimator, or becomes ill-conditioned.
 
 \section{Reproducibility}
 
-All scripts are included. \texttt{scripts/collect\_literature.py} rebuilds the landscape matrix from OpenAlex. \texttt{scripts/synthesize\_literature.py} regenerates the novelty documents. \texttt{experiments/run\_calibration\_state\_sim.py} runs the 14,400-rollout simulation and writes CSVs and plots. \texttt{experiments/check\_formal\_claim.py} verifies the one-step ambiguity numbers.
+All scripts are included. \texttt{scripts/collect\_literature.py} rebuilds the landscape matrix from OpenAlex. \texttt{scripts/synthesize\_literature.py} regenerates the novelty documents. \texttt{experiments/run\_calibration\_state\_sim.py} runs the 14,400 main rollouts plus the 2,400-rollout Windowed SysID baseline and writes CSVs, tables, and plots. \texttt{experiments/check\_formal\_claim.py} verifies the one-step ambiguity numbers.
 
 \section{Conclusion}
 
