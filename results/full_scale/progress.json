@@ -1,0 +1,14 @@
+{
+  "stage": "complete",
+  "family_A_rows": 224,
+  "family_B_rows": 135,
+  "family_C_rows": 288,
+  "family_D_rows": 344,
+  "family_E_rows": 162,
+  "family_F_rows": 144,
+  "family_G_rows": 240,
+  "family_H_rows": 144,
+  "total_seed_rows": 1681,
+  "total_episodes": 14614,
+  "plot_failures": 0
+}

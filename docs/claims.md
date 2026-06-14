@@ -8,6 +8,10 @@
 - In the 2D drift-control testbed, explicit calibration-state control should improve success, final error, and path efficiency over offline calibration, robust low-gain control, and a simple residual-bias adapter.
 - The advantage should be largest under abrupt or random-walk drift and smaller under static mild miscalibration.
 - A v2 Windowed SysID baseline that estimates the calibration map from the most recent 14 transitions recovers much of the benefit, but remains below CSC under abrupt bumps (0.867 vs. 0.962 success) and severe random walk (0.948 vs. 0.977).
+- The v3 full-scale suite contains eight experiment families, 1,681 deterministic batch-row summaries, and 14,614 episodes.
+- In the v3 main suite, CSC reaches 0.997 success, frozen-start calibration reaches 0.951, Windowed SysID reaches 1.000, and oracle reaches 1.000.
+- CSC has lower main-suite final error than Windowed SysID (0.0020 vs. 0.0037), but Windowed SysID is a competitive calibration-state controller. The safe claim is the policy-state interface, not RLS-specific dominance.
+- V3 negative controls support the structured-state claim: shuffled calibration state reaches 0.653, scalar context 0.694, and matrix-not-policy 0.792 in Family H.
 
 ## Boundary Claims
 - CSC helps only when the hidden calibration map is at least locally observable from recent transitions.
@@ -21,3 +25,4 @@
 - Do not claim novelty for online calibration itself.
 - Do not claim that RLS is uniquely responsible for the gain over frozen calibration.
 - Do not claim global observability or stability beyond the simplified setting.
+- Do not claim RLS-based CSC beats Windowed SysID in every metric.

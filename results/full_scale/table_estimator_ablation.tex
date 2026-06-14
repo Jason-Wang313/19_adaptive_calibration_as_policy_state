@@ -1,0 +1,20 @@
+\begin{table}[t]
+\caption{Family B estimator and policy-state interface ablations.}
+\label{tab:estimator-ablation}
+\centering
+\begin{tabular}{lrrr}
+\toprule
+Variant & Success & Final err. & Cal. err. \\
+\midrule
+rls f0.84 & 1.000 & 0.0016 & 0.333 \\
+rls f0.925 & 1.000 & 0.0016 & 0.383 \\
+rls f1.0 & 0.989 & 0.0027 & 0.421 \\
+window 14 & 1.000 & 0.0047 & 0.489 \\
+window 32 & 0.989 & 0.0022 & 0.409 \\
+matrix not policy & 0.867 & 0.0251 & 0.267 \\
+scalar context & 0.744 & 0.0524 & 0.735 \\
+shuffled matrix & 0.744 & 0.1279 & 0.935 \\
+oracle & 1.000 & 0.0014 & 0.000 \\
+\bottomrule
+\end{tabular}
+\end{table}

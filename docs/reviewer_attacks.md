@@ -9,11 +9,13 @@
 4. **The method is a hand-designed estimator, not a learning paper.**
    Response: the paper should be framed as embodied policy-state design; ICLR relevance comes from state representation for robot policies and sim-to-real adaptation. The v2 baseline strengthens this framing by showing that estimator choice is not the whole contribution.
 5. **Toy simulation is too small.**
-   Response: the testbed supports the mechanism and formal claim; paper-readiness may be workshop/revise unless larger hardware or learned-policy experiments are added.
+   Response: the v3 suite now has eight synthetic families, 1,681 batch-row summaries, 14,614 episodes, strong baselines, and negative controls. It is submission-ready only as a synthetic mechanism artifact; hardware and learned-policy baselines remain future work.
 6. **Domain randomization can cover this.**
    Response: compare against robust low-gain/randomized-style baselines and claim efficiency/ambiguity, not universal dominance.
 7. **The calibration state may be unobservable.**
-   Response: explicitly state observability conditions and include failure cases/conditioning diagnostics.
+   Response: Family C explicitly stresses observability/excitation, and the manuscript treats low excitation as a real boundary rather than a solved problem.
+9. **Windowed SysID is as good as CSC.**
+   Response: often yes. The v3 paper uses that to narrow the claim to calibration as policy state, not RLS-specific superiority.
 8. **The literature sweep is automated.**
    Response: mark it as broad abstract-level hostile mapping and keep claims conservative.
 
