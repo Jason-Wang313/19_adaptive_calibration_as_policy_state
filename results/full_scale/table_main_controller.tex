@@ -1,0 +1,18 @@
+\begin{table}[t]
+\caption{Family A main controller comparison across eight drift modes.}
+\label{tab:main-controller}
+\centering
+\begin{tabular}{lrrrr}
+\toprule
+Controller & Success & Final err. & Tail err. & Cal. err. \\
+\midrule
+nominal & 0.924 & 0.0258 & 0.0815 & 0.462 \\
+low-gain & 0.359 & 0.1849 & 0.2975 & 0.462 \\
+frozen & 0.951 & 0.0176 & 0.0566 & 0.304 \\
+residual & 0.872 & 0.0291 & 0.0986 & 0.462 \\
+windowed & 1.000 & 0.0037 & 0.0314 & 0.417 \\
+CSC & 0.997 & 0.0020 & 0.0309 & 0.201 \\
+oracle & 1.000 & 0.0015 & 0.0326 & 0.000 \\
+\bottomrule
+\end{tabular}
+\end{table}

@@ -6,9 +6,9 @@
 
 ## Response
 
-The v2 manuscript narrows the claim. It does not claim online calibration, RLS, or system identification as novel. The contribution is the policy-state interface: calibration drift is a decision-relevant state variable that should remain inside the action computation when it changes during rollout.
+The v3 manuscript narrows the claim. It does not claim online calibration, RLS, or system identification as novel. The contribution is the policy-state interface: calibration drift is a decision-relevant state variable that should remain inside the action computation when it changes during rollout.
 
-The new Windowed SysID baseline is intentionally hostile. It estimates the local action-observation map from the most recent 14 transitions and uses the same inverse-control interface. It recovers much of the benefit, reaching 0.867 success under abrupt bumps and 0.948 under severe random walk. CSC remains stronger in those modes at 0.962 and 0.977, but the honest conclusion is that the state interface matters more than the specific estimator.
+The Windowed SysID baseline is intentionally hostile. In the v3 main suite it reaches 1.000 success, while RLS-based CSC reaches 0.997 success and lower final error. The honest conclusion is that structured calibration state matters more than the specific estimator.
 
 ## What The Paper Still Cannot Claim
 
@@ -19,4 +19,4 @@ The new Windowed SysID baseline is intentionally hostile. It estimates the local
 
 ## Honest Position
 
-Workshop-only / strong-revise: useful mechanism and falsification target, but not main-track without hardware or strong learned-policy comparisons.
+V3 synthetic mechanism submission-ready under the narrow policy-state claim: useful mechanism, formal ambiguity, full-scale simulation, strong baselines, and negative controls. It is still not a real-robot or learned-recurrent-policy dominance claim.

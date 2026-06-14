@@ -1,6 +1,6 @@
 # Submission Attack Log
 
-Updated: 2026-06-13 01:51:37 +01:00
+Updated: 2026-06-14
 
 ## V2 Attack Rounds
 
@@ -12,4 +12,17 @@ Updated: 2026-06-13 01:51:37 +01:00
 
 ## Terminal Assessment
 
-Recoverable baseline weakness was addressed. Remaining weaknesses require new learned-policy or hardware work outside the current local artifact scope.
+Recoverable v2 baseline weakness was addressed. Remaining weaknesses motivated the v3 full-scale pass.
+
+## V3 Attack Rounds
+
+1. **Paper is too short / not submission-scale.** Expanded to a 25-page manuscript with full-scale results and extended appendices.
+2. **Evidence too narrow.** Added eight experiment families with 1,681 batch-row summaries and 14,614 episodes.
+3. **RLS estimator may be the whole story.** Family B and the main suite show Windowed SysID is highly competitive, narrowing the claim to calibration as policy state.
+4. **Generic memory may be enough.** Family H adds scalar, matrix-not-policy, shuffled, random, delayed-oracle, CSC, and oracle controls.
+5. **Observability handwave.** Family C explicitly stresses excitation and the manuscript treats low excitation as a boundary.
+6. **Planning utility overclaimed.** Family G is included as a hard stress and is explicitly not used as broad planning-dominance evidence.
+
+## V3 Terminal Assessment
+
+Submission-ready under the narrow synthetic mechanism claim. Not a real-robot validation claim; not RLS-specific novelty; not dominance over learned recurrent policies.

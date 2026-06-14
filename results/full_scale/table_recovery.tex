@@ -1,0 +1,27 @@
+\begin{table}[t]
+\caption{Family F recovery after discrete drift events.}
+\label{tab:recovery}
+\centering
+\begin{tabular}{lrrr}
+\toprule
+Setting & Success & Rec. steps & Peak err. \\
+\midrule
+abrupt bump frozen & 0.528 & 5.48 & 0.229 \\
+abrupt bump windowed & 0.972 & 0.84 & 0.063 \\
+abrupt bump CSC & 0.972 & 0.99 & 0.068 \\
+abrupt bump oracle & 0.972 & 0.81 & 0.068 \\
+late bump frozen & 0.736 & 0.96 & 0.063 \\
+late bump windowed & 0.958 & 0.12 & 0.017 \\
+late bump CSC & 0.972 & 0.94 & 0.063 \\
+late bump oracle & 1.000 & 0.96 & 0.063 \\
+alternating frozen & 0.667 & 1.91 & 0.087 \\
+alternating windowed & 1.000 & 0.02 & 0.008 \\
+alternating CSC & 1.000 & 0.01 & 0.003 \\
+alternating oracle & 1.000 & 0.03 & 0.005 \\
+drift burst frozen & 0.958 & 1.18 & 0.097 \\
+drift burst windowed & 1.000 & 0.81 & 0.074 \\
+drift burst CSC & 1.000 & 0.96 & 0.092 \\
+drift burst oracle & 1.000 & 1.04 & 0.088 \\
+\bottomrule
+\end{tabular}
+\end{table}

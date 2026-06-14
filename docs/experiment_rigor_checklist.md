@@ -8,8 +8,14 @@
 - [x] Metrics include success rate, final error, path efficiency, command use, calibration error, and standard error for success.
 - [x] Machine-readable outputs: episode CSV, aggregate CSV, Windowed SysID CSV, progress JSON.
 - [x] Figures regenerate from the experiment script.
+- [x] Full-scale v3 runner: `python experiments/full_scale_calibration_state.py`.
+- [x] V3 suite includes eight families: main comparison, estimator/interface ablations, observability/excitation, noise/latency/dropout/outliers, conditioning/fallback, drift-event recovery, planning/control utility, and negative controls.
+- [x] V3 generated 1,681 deterministic batch-row summaries and 14,614 simulated episodes.
+- [x] V3 generated tables and figures under `results/full_scale/`.
+- [x] Strong v3 baselines include Windowed SysID, frozen-start calibration, residual-bias adaptation, negative controls, and oracle calibration.
+- [x] V3 reports boundary results: Windowed SysID reaches 1.000 main success, and Family G does not prove planning dominance.
 - [ ] Real-robot or high-fidelity visual-servoing validation.
 - [ ] Learned recurrent-policy baseline.
-- [ ] Explicit observability or excitation stress beyond the current drift modes.
+- [x] Explicit observability and excitation stress.
 
-Decision: rigorous enough for workshop-only / strong-revise positioning; not enough for deployment or main-track claims.
+Decision: v3 synthetic mechanism submission-ready under a narrow policy-state claim; still not enough for deployment or real-robot claims.

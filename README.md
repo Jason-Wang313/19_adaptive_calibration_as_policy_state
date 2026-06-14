@@ -7,7 +7,9 @@ This repository contains the paper-19 child-agent output for **Adaptive Calibrat
 - `C:/Users/wangz/Downloads/19.pdf`: canonical compiled paper for the batch.
 - `docs/related_work_matrix.csv`: 6,710-paper landscape matrix with 300 serious skims, 225 structured deep reads, and 100 hostile priors.
 - `docs/literature_map.md`, `docs/hostile_prior_work.md`, `docs/novelty_boundary_map.md`, `docs/novelty_decision.md`: novelty and literature analysis.
-- `results/aggregate_results.csv`, `results/windowed_context_baseline.csv`, `results/calibration_state_evidence.md`: simulation evidence summary and v2 hostile baseline.
+- `results/aggregate_results.csv`, `results/windowed_context_baseline.csv`, `results/calibration_state_evidence.md`: compact v2 simulation evidence summary and hostile baseline.
+- `experiments/full_scale_calibration_state.py`: v3 full-scale evidence runner.
+- `results/full_scale/`: v3 CSV summaries, generated tables, figures, metadata, and progress audit.
 - `docs/final_audit.md`: final readiness audit.
 
 ## Reproduce
@@ -35,6 +37,12 @@ Run the calibration-drift simulation:
 python experiments\run_calibration_state_sim.py
 ```
 
+Run the full-scale v3 suite:
+
+```powershell
+python experiments\full_scale_calibration_state.py
+```
+
 Regenerate the paper source and references:
 
 ```powershell
@@ -54,4 +62,13 @@ The local build creates `paper/main.pdf`; the hardened repo removes that build
 artifact from git after copying the canonical PDF to Downloads.
 
 ## Evidence Scope
-The empirical evidence is simulation-only: a deterministic 2D hidden calibration drift testbed with 14,400 main rollouts plus a 2,400-rollout v2 Windowed SysID baseline. The strongest supported claim is that explicit calibration state helps when the hidden action-observation map changes during a rollout and remains locally observable from recent residuals. The repo does not claim real-robot validation, RLS-specific novelty, or dominance over learned recurrent policies.
+The empirical evidence is simulation-only. The v3 full-scale suite contains
+1,681 deterministic batch-row summaries and 14,614 simulated episodes across
+eight experiment families. CSC reaches 0.997 main success, frozen-start
+calibration reaches 0.951, Windowed SysID reaches 1.000, and shuffled
+calibration state reaches 0.653 in the negative-control family.
+
+The strongest supported claim is that calibration drift is decision-relevant
+policy state when the hidden action-observation map changes during rollout and
+remains locally observable. The repo does not claim real-robot validation,
+RLS-specific novelty, or dominance over all learned recurrent policies.

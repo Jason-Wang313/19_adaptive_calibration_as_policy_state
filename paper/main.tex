@@ -1,4 +1,5 @@
 \documentclass{article}
+
 \usepackage{iclr2026_conference,times}
 \input{math_commands.tex}
 \usepackage{hyperref}
@@ -6,151 +7,1455 @@
 \usepackage{graphicx}
 \usepackage{booktabs}
 \usepackage{amsmath,amssymb,amsthm}
+\usepackage{enumitem}
+\usepackage{microtype}
+
+\graphicspath{{../results/full_scale/}{../results/}{figures/}}
 
 \newtheorem{proposition}{Proposition}
 
+\newcommand{\obs}{y}
+\newcommand{\goal}{g}
+\newcommand{\act}{u}
+\newcommand{\cmap}{F}
+\newcommand{\cmaphat}{\hat F}
+\newcommand{\cov}{P}
+\newcommand{\state}{h}
+
 \title{Adaptive Calibration as Policy State}
 
-\author{Anonymous Authors\\
-Anonymous Institution\\
-\texttt{anonymous@example.com}}
+\author{Anonymous Authors}
 
 \begin{document}
 \maketitle
 
-\noindent\textbf{Submission-hardening version: v2.}
-This revision adds a hostile Windowed SysID baseline that estimates the action-observation map from the most recent transitions and uses the same inverse-control interface.
+\noindent\textbf{Submission-hardening version: v3, 2026-06-14.}
+This version replaces the six-page v2 mechanism note with a full-scale
+submission artifact. It adds a paper-specific execution plan, a new sequential
+full-scale runner, eight experiment families, 1,681 deterministic batch-row
+summaries, 14,614 simulated episodes, generated figures and tables, estimator
+and interface ablations, observability stress, noise/latency/outlier stress,
+conditioning stress, drift-event recovery, planning/control utility, negative
+controls, and an artifact-to-claim audit. The paper remains simulation-only; it
+does not claim real-robot deployment or novelty for online calibration itself.
 
 \begin{abstract}
-Robot calibration is usually treated as a preprocessing artifact: estimate a camera, tool, or model transform, then run a policy as if that transform were fixed. This paper argues that this interface is wrong for deployed robots whose calibration drifts while they act. We propose Calibration-State Control (CSC), a policy interface in which the current action-observation calibration map is a recurrent state variable updated from task residuals and used immediately to compute actions. A one-step linear example proves that omitting calibration state can create an irreducible action ambiguity: the same observation and goal require different actions under different hidden calibration maps. In a reproducible 2D waypoint-tracking testbed with 14,400 main rollouts plus a 2,400-rollout v2 baseline, CSC matches frozen initial calibration in the static case (0.970 vs. 0.973 success) and improves over it under nonstationary drift, from 0.538 to 0.962 success under abrupt bumps and from 0.898 to 0.977 under severe random walk. A hostile Windowed SysID baseline also carries an online calibration map and reaches 0.867 and 0.948 success in those two drift modes, narrowing the claim from estimator novelty to policy-state interface. The evidence is intentionally narrow and simulation-only; the contribution is the state-interface claim, the formal ambiguity, and a runnable falsification target for future robot experiments.
+Robot calibration is usually treated as a preprocessing artifact: estimate a
+camera, tool, kinematic, or action-observation transform, then run a policy as
+though that transform were fixed. This interface is brittle when calibration
+drifts during task execution. We argue that calibration should instead be
+represented as policy state: an online estimate of the current
+action-observation map should remain inside the recurrent state used to compute
+actions. We call this interface Calibration-State Control (CSC). A minimal
+linear example shows why the issue is structural: two hidden calibration maps
+can present the same observation and goal while requiring different optimal
+actions, so a memoryless policy omitting calibration state cannot be
+simultaneously optimal. A full-scale synthetic suite with eight experiment
+families, 1,681 deterministic batch rows, and 14,614 episodes supports a narrow
+version of the claim. In the main drift suite, CSC reaches 0.997 success,
+frozen-start calibration reaches 0.951, and oracle calibration reaches 1.000.
+A hostile Windowed SysID baseline also carries a calibration map inside the
+policy loop and reaches 1.000 aggregate success, narrowing the contribution
+from estimator novelty to the policy-state interface. The boundary is explicit:
+low-excitation CSC success is 0.901, high-noise CSC success is 1.000 in the
+tested range, condition-aware fallback success is 0.979, drift-event recovery
+success is 0.986, and shuffled calibration state drops to 0.653. The evidence
+does not prove real-robot safety, learned recurrent-policy dominance, or global
+observability. It supports the thesis that calibration drift is a
+decision-relevant hidden state and should be exposed to the policy rather than
+collapsed into offline preprocessing.
 \end{abstract}
 
 \section{Introduction}
 
-Calibration is the quiet contract between a robot policy and the physical world. Hand-eye transforms, tool offsets, camera intrinsics, kinematic parameters, and simulator-to-robot maps tell a controller how a command should move the observed world. The common workflow estimates those quantities before deployment and then lets the policy consume observations and goals as though calibration were fixed. That workflow is natural for metrology, but it is brittle for embodied policies: tools slip, cameras flex, payloads shift, soft links deform, contact changes the effective kinematic chain, and thermal or cable effects move frames during the task.
+Calibration is the quiet contract between a robot policy and the physical
+world. Hand-eye transforms, tool offsets, camera intrinsics, kinematic
+parameters, tactile frames, and simulator-to-robot maps tell a controller how a
+command should move the observed world. The common workflow estimates those
+quantities before deployment and then lets a policy consume observations and
+goals as though calibration were fixed. That workflow is natural for metrology
+and factory setup, but it is not the right abstraction for every embodied
+policy. Tools slip. Cameras flex. Payloads shift. Contact changes the effective
+kinematic chain. Thermal effects, cable forces, and compliance move frames
+during the task.
 
-The literature already contains many ways to reduce calibration error: hand-eye and extrinsic calibration \citep{han2023data,su2003free,yang2022model}, kinematic calibration \citep{han2023data,seegmiller2014dynamic,yang2022model}, online and self-calibration \citep{xu2023novel,martinelli2011state,yang2023cerberus,bohm2021combined}, uncalibrated visual servoing \citep{han2023data,su2003free,yang2022model,agersand1994differential}, system identification \citep{han2023data,su2003free,ma2026bridging}, latent-context adaptation \citep{webb2014parameter,calandra2017bayesian,anne2021meta}, domain randomization \citep{ma2026bridging,howell2022dojo,leboutet2021inertial}, residual correction \citep{ma2026bridging,webb2014parameter,calandra2017bayesian}, and contact or tactile identification \citep{ebrahimi2022simultaneous,yang2022kinematic}. Our claim is not that calibration can be estimated. The claim is that, for policies, calibration should be part of the state on which actions are conditioned.
+When calibration changes during a rollout, the problem is not only that the
+controller has parameter error. The policy input is missing a state variable.
+The same observed end-effector location and the same visual goal can require
+different commands under different hidden action-observation maps. If the
+policy receives only observation and goal, the ambiguity is irreducible. A
+robust controller can move cautiously, but it does not know which action is
+right. An offline calibration can be initially perfect, but it cannot react to
+mid-episode drift. A residual-bias controller can compensate some average
+error, but it need not represent the current map through which actions produce
+observations.
 
-We study the following question: what changes if calibration drift is represented as a hidden policy state rather than an offline preprocessing step? The answer is a small mechanism with a sharp boundary. CSC maintains a low-dimensional estimate of the local action-observation map and feeds that estimate into the action computation. The policy interface changes from $\pi(y_t,g_t)$ to $\pi(y_t,g_t,\hat F_t,P_t)$, where $y_t$ is the observation, $g_t$ is a goal, $\hat F_t$ is the current calibration estimate, and $P_t$ summarizes estimator confidence/conditioning.
+This paper studies a narrow interface change: calibration should be policy
+state. Calibration-State Control (CSC) maintains an online estimate of the
+local action-observation map and uses that estimate when computing each action.
+The policy interface changes from
+\[
+  \pi(\obs_t,\goal_t)
+\]
+to
+\[
+  \pi(\obs_t,\goal_t,\state_t),
+  \qquad \state_t=(\cmaphat_t,\cov_t,\kappa_t),
+\]
+where $\cmaphat_t$ is the current calibration estimate, $\cov_t$ is estimator
+confidence or covariance, and $\kappa_t$ is a conditioning signal. The
+implementation in this paper uses recursive least squares (RLS), but the
+claim is not that RLS is new. The claim is that the calibration estimate, from
+whatever source, should remain in the action-selection state when drift is
+ongoing.
 
-This paper makes four contributions. First, it gives a hostile literature map from a 6,710-paper OpenAlex sweep, with 300 serious skims, 225 structured deep reads, and 100 novelty-threatening priors. Second, it states the calibration-as-state mechanism and the assumptions under which it is meaningful. Third, it proves a minimal ambiguity result showing that a memoryless observation-goal policy can be missing a decision-relevant state variable. Fourth, it supplies runnable evidence in a hidden-calibration control testbed comparing nominal offline calibration, robust low gain, privileged frozen initial calibration, residual bias adaptation, CSC, and an oracle.
+The v2 paper already made this point with a compact simulation and a Windowed
+SysID baseline. The full-scale v3 pass strengthens and narrows the claim. It
+adds eight experiment families. The new suite includes the main controller
+comparison, estimator/interface ablations, observability and excitation stress,
+noise/latency/dropout/outlier stress, near-singular conditioning stress,
+drift-event recovery, planning/control utility, and negative controls. The
+results are not a simple victory lap. Windowed SysID, which is itself a
+calibration-state controller, can match or slightly exceed RLS-based CSC on
+some aggregate success metrics. Condition-aware fallback does not create a
+large advantage in the tested conditioning range. The short-horizon planning
+stress is difficult for all controllers and does not support broad planning
+dominance. These negative or narrowing results are part of the contribution:
+the defensible claim is about the policy-state interface, not about a
+universal estimator or a deployment-ready robot-safety system.
+
+\paragraph{Contributions.}
+\begin{itemize}[leftmargin=*]
+\item We state calibration drift as a hidden policy-state problem rather than
+only an offline calibration or robustness problem.
+\item We give a minimal formal ambiguity showing that a memoryless
+observation-goal policy can be missing a decision-relevant calibration state.
+\item We implement a simple CSC instance and compare it with nominal control,
+robust low gain, privileged frozen-start calibration, residual-bias adaptation,
+Windowed SysID, negative controls, and oracle calibration.
+\item We run a full-scale synthetic suite with 1,681 deterministic batch-row
+summaries and 14,614 simulated episodes across eight experiment families.
+\item We report the boundaries honestly: Windowed SysID is a strong
+calibration-state baseline, shuffled/scalar context is insufficient, low
+excitation remains a risk, and real-robot validation is still required.
+\end{itemize}
 
 \section{Related Work And Novelty Boundary}
 
 \paragraph{Calibration and visual feedback.}
-Robot calibration has long estimated kinematic parameters, hand-eye transforms, camera extrinsics, tool frames, and visual-servo Jacobians \citep{han2023data,su2003free,yang2022model}, \citep{han2023data,seegmiller2014dynamic,yang2022model}, and \citep{han2023data,su2003free,yang2022model,agersand1994differential}. This work makes online operation possible but usually exports a calibrated transform to the controller. Uncalibrated visual servoing weakens that requirement by closing feedback around image error \citep{han2023data,su2003free,yang2022model,agersand1994differential}. CSC is compatible with these methods: it asks that their outputs remain inside the policy state when drift continues, rather than being collapsed into a fixed preprocessing result.
+Robot calibration has long estimated kinematic parameters, hand-eye transforms,
+camera extrinsics, tool frames, and visual-servo Jacobians
+\citep{han2023data,su2003free,yang2022model,seegmiller2014dynamic,
+agersand1994differential}. Online and self-calibration methods adapt these
+quantities from interaction or sensor fusion
+\citep{xu2023novel,martinelli2011state,yang2023cerberus,bohm2021combined,
+yang2022kinematic}. Uncalibrated visual servoing weakens the need for exact
+calibration by closing feedback around image error
+\citep{su2003free,agersand1994differential,leite2023regularized,
+papanikolopoulos1993visual,cheah2007vision}. CSC is compatible with these
+methods. It does not claim that calibration estimation is new. It asks that
+calibration estimates remain in the policy state when they continue to change
+during task execution.
 
-\paragraph{Adaptation, identification, and robustness.}
-System identification and Bayesian parameter estimation infer physical parameters from interaction \citep{han2023data,su2003free,ma2026bridging}. Latent-context policies and online system identification condition policies on inferred hidden variables \citep{webb2014parameter,calandra2017bayesian,anne2021meta}. Domain randomization and sim-to-real methods train policies to tolerate a distribution of mismatches \citep{ma2026bridging,howell2022dojo,leboutet2021inertial}. Residual methods learn corrective actions or dynamics terms \citep{ma2026bridging,webb2014parameter,calandra2017bayesian}. These directions make calibration-as-state less surprising, but they also reveal the novelty boundary: CSC does not claim generic hidden-context learning or generic robustness. It factors out one physically meaningful hidden variable, the local action-observation calibration map, and makes it a first-class policy state.
+\paragraph{System identification and adaptive control.}
+System identification, adaptive control, and Bayesian parameter estimation
+infer hidden physical parameters from interaction
+\citep{bohm2021combined,frigola2013integrated,calandra2017bayesian}. Many
+robot controllers adapt gains, dynamics, or residual terms online
+\citep{webb2014parameter,anne2021meta,sontakke2023residual}. These methods
+threaten any broad claim that online adaptation is novel. The safe novelty is
+the factorized policy interface: the local action-observation calibration map
+is represented explicitly as state and used immediately in action computation.
 
-\paragraph{What is not claimed.}
-Online calibration, robust control under calibration error, and visual servoing are prior art. CSC is not a larger model, a new benchmark alone, reinforcement learning, or an LLM planner. The defended claim is narrower: if hidden calibration drift changes which action is correct at the same observation and goal, a policy interface that omits calibration state is structurally under-specified.
+\paragraph{Latent context and sim-to-real.}
+Latent-context policies, meta-learning, domain randomization, and residual
+adaptation all address hidden environment variation
+\citep{calandra2017bayesian,anne2021meta,ma2026bridging,howell2022dojo,
+leboutet2021inertial}. A sufficiently expressive recurrent policy could learn
+an implicit calibration state. This paper does not claim otherwise. It argues
+that calibration is important enough to factor explicitly, both for action
+quality and for diagnosis. A learned recurrent policy is a future baseline, not
+an enemy of the claim; if it learns an internal action-observation map, that
+would support the idea that calibration is policy state.
+
+\paragraph{Novelty boundary from hostile sweep.}
+The repository contains a 6,710-row literature matrix, 300 serious-skim papers,
+225 structured deep reads, and 100 hostile priors. The sweep makes several
+claims unsafe: online calibration itself, visual servoing itself, RLS itself,
+generic robustness to calibration noise, and generic latent-context learning.
+The remaining defensible claim is narrower: calibration drift can be
+decision-relevant during a rollout, so policies should expose the current
+calibration estimate as a state variable rather than treating calibration as a
+pre-task artifact.
 
 \section{Calibration Drift As Hidden Policy State}
 
-Let $y_t\in\mathbb{R}^d$ be the observed task coordinate, $g_t$ a desired coordinate, and $u_t\in\mathbb{R}^m$ a command in the robot's nominal action frame. Around the current operating point, suppose the observed displacement is
+Let $\obs_t\in\mathbb{R}^d$ be the observed task coordinate, $\goal_t$ a desired
+coordinate, and $\act_t\in\mathbb{R}^m$ a command in the robot's nominal action
+frame. Around the current operating point, suppose observed displacement obeys
 \begin{equation}
-  y_{t+1} - y_t = F(c_t)u_t + \epsilon_t,
+  \obs_{t+1}-\obs_t = \cmap(c_t)\act_t+\epsilon_t,
 \end{equation}
-where $c_t$ is a hidden calibration state and $F(c_t)$ is the action-observation map induced by camera, tool, kinematic, and local contact geometry. Offline calibration assumes $c_t=c_0$ or that deviations are small enough for feedback. CSC instead uses a recurrent state $h_t=(\hat F_t,P_t)$ updated from $(u_t,y_{t+1}-y_t)$.
+where $c_t$ is a hidden calibration state and $\cmap(c_t)$ is the
+action-observation map induced by camera, tool, kinematic, contact, and
+representation geometry. Offline calibration assumes $c_t=c_0$ for the task or
+that deviations are small enough for feedback. CSC instead uses a recurrent
+state $\state_t=(\cmaphat_t,\cov_t)$ updated from recent action-displacement
+pairs.
 
 \begin{proposition}[Calibration state can be decision-relevant]
-There exist two hidden calibration maps $F_1,F_2$, a shared observation $y$, and a shared goal displacement $g$ such that no policy $\pi(y,g)$ choosing the same action under both maps can be optimal for both, while a policy $\pi(y,g,F_i)$ can achieve zero one-step error for each map.
+There exist two hidden calibration maps $\cmap_1,\cmap_2$, a shared observation
+$\obs$, and a shared goal displacement $\goal$ such that no policy
+$\pi(\obs,\goal)$ choosing the same action under both maps can be optimal for
+both, while a policy $\pi(\obs,\goal,\cmap_i)$ can achieve zero one-step error
+for each map.
 \end{proposition}
 
 \begin{proof}
-Set $y=0$, $g=(1,0)^\top$, $F_1=I$, and let $F_2$ be a 90-degree rotation. The one-step zero-error action under $F_1$ is $u_1=(1,0)^\top$. Under $F_2$ it is $u_2=F_2^{-1}g=(0,-1)^\top$. A policy that observes only $(y,g)$ must choose one shared action $u$, so it cannot equal both $u_1$ and $u_2$. The best shared least-squares command under a uniform prior is $(0.5,-0.5)^\top$, with expected squared error $0.5$. A calibration-state policy selects $F_i^{-1}g$ and has zero error in this instance.
+Set $\obs=0$, $\goal=(1,0)^\top$, $\cmap_1=I$, and let $\cmap_2$ be a 90-degree
+rotation. The one-step zero-error action under $\cmap_1$ is
+$\act_1=(1,0)^\top$. Under $\cmap_2$ it is
+$\act_2=\cmap_2^{-1}\goal=(0,-1)^\top$. A policy that observes only
+$(\obs,\goal)$ must choose one shared action $\act$, so it cannot equal both
+$\act_1$ and $\act_2$. The best shared least-squares command under a uniform
+prior is $(0.5,-0.5)^\top$, with expected squared error $0.5$. A
+calibration-state policy selects $\cmap_i^{-1}\goal$ and has zero error in this
+instance.
 \end{proof}
 
-The proposition is intentionally small. It does not prove global stability or observability. It only shows that calibration can be a decision-relevant hidden state, so omitting it from the policy interface can be a category error.
+The proposition is intentionally small. It does not prove stability,
+observability, convergence, or real-robot safety. It only shows that
+calibration can be a decision-relevant hidden state. If the policy omits it,
+the action function can be structurally under-specified.
 
 \section{Calibration-State Control}
 
-CSC keeps an estimate $\hat F_t$ of the local action-observation map. In our implementation, each row of $\hat F_t$ is updated with recursive least squares and forgetting factor $\lambda$:
+CSC keeps an estimate $\cmaphat_t$ of the local action-observation map. In the
+RLS implementation, each row of $\cmaphat_t$ is updated with forgetting factor
+$\lambda$:
 \begin{align}
-  k_t &= \frac{P_t u_t}{\lambda + u_t^\top P_t u_t},\\
-  \hat f_{t+1} &= \hat f_t + k_t\left(\Delta y_t - \hat f_t^\top u_t\right),\\
-  P_{t+1} &= \lambda^{-1}\left(P_t-k_tu_t^\top P_t\right).
+  k_t &= \frac{\cov_t \act_t}{\lambda+\act_t^\top\cov_t\act_t},\\
+  \hat f_{t+1} &= \hat f_t + k_t(\Delta \obs_t-\hat f_t^\top \act_t),\\
+  \cov_{t+1} &= \lambda^{-1}(\cov_t-k_t\act_t^\top\cov_t).
 \end{align}
-Given a desired observation displacement $\delta_t=\mathrm{clip}(g_t-y_t)$, CSC commands
+Given a desired observation displacement
+$\delta_t=\mathrm{clip}(\goal_t-\obs_t)$, CSC commands
 \begin{equation}
-  u_t = \mathrm{clip}\left((\hat F_t^\top \hat F_t+\rho I)^{-1}\hat F_t^\top\delta_t\right).
+  \act_t =
+  \mathrm{clip}\left((\cmaphat_t^\top\cmaphat_t+\rho I)^{-1}
+  \cmaphat_t^\top \delta_t\right).
 \end{equation}
-The controller exposes the condition number of $\hat F_t$ as part of policy state; poorly conditioned estimates are a failure signal, not a hidden implementation detail. The mechanism is deliberately simple so that evidence tests the state interface rather than the capacity of a learned policy.
+The controller exposes the condition number of $\cmaphat_t$ as part of state.
+Poor conditioning is a signal for fallback, abstention, slower probing, or a
+more conservative controller. It should not be hidden inside an inverse.
 
-\section{Experiments}
+\paragraph{Estimator-independent interface.}
+RLS is only one way to fill $\cmaphat_t$. The v3 suite includes Windowed SysID
+variants that fit the local map from recent transitions and use the same
+inverse-control interface. It also includes negative controls in which a matrix
+is estimated but not used by the policy, only a scalar context is used, a
+shuffled calibration matrix is used, or a random matrix is substituted. These
+controls separate the state-interface claim from the particular estimator.
 
-\paragraph{Testbed.}
-We simulate 2D waypoint tracking in observed coordinates. Each episode has four waypoint goals over 80 steps. The hidden calibration map is a rotation, anisotropic scale, and shear. Four drift modes are used: static miscalibration, random walk, abrupt bumps, and severe random walk. Observation noise is Gaussian with standard deviation 0.0012. Every controller receives the same waypoint and drift seeds.
+\paragraph{Failure modes.}
+CSC can fail if recent actions do not excite enough directions to identify the
+map, if observation noise overwhelms residuals, if the map changes faster than
+the estimator, if the map is near-singular, or if the assumed low-dimensional
+calibration factor is wrong. The experiment suite tests these issues
+synthetically; it does not solve them for hardware.
 
-\paragraph{Baselines.}
-Nominal offline assumes $F=I$. Robust low gain also assumes $F=I$ but moves conservatively. Frozen-start calibration is a privileged baseline that receives the exact initial $F_0$ and then freezes it. Residual bias adapts an additive action correction from recent displacement error. Windowed SysID, added in v2, fits a local action-observation map from the most recent 14 transitions and uses the same inverse-control interface as CSC. Oracle receives the true $F_t$ at each step. CSC estimates $F_t$ online from the same task residuals used by the other adaptive baselines.
+\section{Full-Scale Experiment Design}
 
-\begin{table}[t]
-\caption{Waypoint tracking under hidden calibration drift. Entries are success rate; lower mean final error is discussed in text and plotted in Figure~\ref{fig:results}. The frozen-start baseline is privileged with the exact initial calibration but cannot update after drift.}
-\label{tab:success}
-\centering
-\resizebox{\linewidth}{!}{%
-\begin{tabular}{lrrrr}
-\toprule
-Controller & Static & Random walk & Abrupt bump & Severe walk \\
-\midrule
-Nominal offline & 0.922 & 0.875 & 0.478 & 0.750 \\
-Robust low gain & 0.240 & 0.250 & 0.145 & 0.218 \\
-Frozen start calib. & 0.973 & 0.947 & 0.538 & 0.898 \\
-Residual bias & 0.835 & 0.790 & 0.362 & 0.648 \\
-CSC (ours) & 0.970 & 0.970 & 0.962 & 0.977 \\
-Oracle calibration & 0.973 & 0.973 & 0.967 & 0.978 \\
-\bottomrule
-\end{tabular}%
-}
-\end{table}
+The v3 runner is \path{experiments/full_scale_calibration_state.py}. It writes
+seed rows, summaries, generated tables, generated figures, progress, and
+metadata under \path{results/full_scale/}. The run is sequential and
+RAM-light: every family streams compact batch summaries to disk instead of
+holding rollout tensors in memory.
 
-\input{../results/windowed_context_table}
+\input{../results/full_scale/table_runtime_memory.tex}
+
+\paragraph{World.}
+The testbed is a two-dimensional waypoint-tracking problem in observed
+coordinates. The hidden calibration map is a rotation, anisotropic scale, and
+shear. Every episode has the same interface: observe $\obs_t$, choose
+$\act_t$, receive displacement $\Delta\obs_t$, update any online state, and
+continue. The main horizon is 80 steps, matching the v2 evidence. The v3 suite
+uses 1,681 batch rows and 14,614 episodes.
+
+\paragraph{Controllers.}
+The main controllers are:
+\begin{itemize}[leftmargin=*]
+\item nominal offline control, which assumes $\cmap=I$;
+\item robust low gain, which also assumes $\cmap=I$ but moves conservatively;
+\item frozen-start calibration, which is privileged with the exact initial map
+but cannot update;
+\item residual-bias adaptation, which learns an additive action correction;
+\item Windowed SysID, which estimates a recent local map and uses inverse
+control;
+\item RLS-based CSC, which carries $\cmaphat_t$ as recurrent policy state;
+\item oracle calibration, which receives the true current map.
+\end{itemize}
+
+\paragraph{Families.}
+Family A is the main controller comparison over eight drift modes. Family B
+ablates estimators and whether the calibration estimate is actually used by the
+policy. Family C stresses observability and excitation. Family D adds
+observation noise, action noise, delayed updates, dropout, and outliers. Family
+E tests near-singular maps and condition-aware fallback. Family F measures
+recovery after drift events. Family G is a short-horizon multi-goal
+planning/control utility stress. Family H uses negative controls: scalar
+context, matrix estimates not used by the policy, shuffled state, random state,
+and delayed oracle state.
+
+\paragraph{Metrics.}
+We report success, final error, tail tracking error, path efficiency, total
+command norm, recent calibration error, condition number, excitation score,
+overshoot rate, event peak error, recovery steps, and total drift. The central
+metric depends on the family. Success is intuitive for main tracking. Final
+error exposes small differences among high-success controllers. Calibration
+error distinguishes structured state from generic context. Recovery steps
+measure drift-event adaptation. Planning tail error is useful in Family G
+because the short-horizon stress makes final success harsh for all controllers.
+
+\section{Family A: Main Controller Comparison}
+
+\input{../results/full_scale/table_main_controller.tex}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.49\linewidth]{figures/success_by_mode.pdf}
-\includegraphics[width=0.49\linewidth]{figures/final_error_by_mode.pdf}
-\caption{CSC is nearly oracle-level in success under moving calibration drift and clearly separates from frozen-start calibration when the hidden map changes abruptly. Static calibration remains a case where frozen-start calibration is slightly better, as expected.}
-\label{fig:results}
+\includegraphics[width=0.82\linewidth]{figure_main_success.pdf}
+\caption{Family A success across eight drift modes. Windowed SysID and
+RLS-based CSC both behave as calibration-state controllers and approach oracle
+performance. Frozen-start calibration remains strong when drift is mild but
+cannot track abrupt changes.}
+\label{fig:main-success}
 \end{figure}
 
-\paragraph{Results.}
-Table~\ref{tab:success} and Figure~\ref{fig:results} show the central pattern. In static episodes, privileged frozen-start calibration is marginally better than CSC (0.973 vs. 0.970), which is the correct outcome: if calibration is fixed and known, a frozen estimate is enough. Under random-walk drift, CSC improves success over frozen-start calibration (0.970 vs. 0.947). Under abrupt bumps, the offline assumption breaks sharply: frozen-start reaches 0.538 success while CSC reaches 0.962. Under severe random walk, CSC reaches 0.977 success versus 0.898 for frozen-start. Residual bias adaptation helps less because it corrects commands without representing the action-observation map.
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.82\linewidth]{figure_main_final_error.pdf}
+\caption{Family A final error. CSC has lower aggregate final error than the
+Windowed SysID baseline even though Windowed SysID reaches 1.000 aggregate
+success in this generated suite.}
+\label{fig:main-error}
+\end{figure}
 
-Table~\ref{tab:windowed-sysid} adds the strongest recoverable v2 baseline. Windowed SysID is not a straw baseline: it estimates a calibration map online and conditions actions on that map. It improves over frozen-start calibration under every moving-drift mode, reaching 0.867 success under abrupt bumps and 0.948 under severe random walk. CSC still does better in those modes, but the more important conclusion is narrower: the evidence favors keeping calibration inside the policy state, while the exact estimator remains an implementation choice that should be tested against learned recurrent and system-identification alternatives.
+Family A is the headline comparison and the first narrowing result. CSC reaches
+0.997 aggregate success, frozen-start calibration reaches 0.951, Windowed SysID
+reaches 1.000, and oracle reaches 1.000. On mean final error, CSC is closer to
+oracle: CSC reports 0.0020, Windowed SysID 0.0037, and oracle 0.0015. The safe
+interpretation is not that RLS-based CSC dominates every baseline. It is that
+controllers carrying an online calibration map inside the policy loop approach
+oracle behavior, while offline or generic-context baselines are weaker.
 
-\paragraph{What the evidence supports.}
-The experiments support the mechanism-level claim that explicit calibration state matters when the map changes during the rollout and remains observable from task residuals. They do not establish real-robot performance, learned recurrent-policy superiority, or global identifiability. The strongest evidence is that CSC beats a privileged frozen-initial-calibration baseline exactly when the hidden calibration state changes.
+The static setting should not show a large CSC advantage. If calibration is
+fixed and known, freezing the true initial map is already correct. The moving
+drift modes are the relevant cases. There, the policy-state interface matters
+because the map changes after the first step. The strong Windowed SysID result
+is valuable: it shows that the paper is not about the brand name of one
+estimator. It is about keeping a structured calibration estimate in the state
+used to choose actions.
+
+\section{Family B: Estimator And Interface Ablations}
+
+\input{../results/full_scale/table_estimator_ablation.tex}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.82\linewidth]{figure_estimator_ablation.pdf}
+\caption{Family B estimator and interface ablations. Several map-estimating
+controllers are strong. Scalar, shuffled, and matrix-not-policy controls are
+weaker, supporting the policy-state interface claim.}
+\label{fig:estimator}
+\end{figure}
+
+Family B asks whether the result is estimator-specific. RLS variants with
+forgetting factors 0.84 and 0.925 reach 1.000 success in this family. Windowed
+SysID with a 14-step window also reaches 1.000 success, though with higher
+calibration error and final error than the best RLS variants. No-forgetting
+RLS and long-window SysID are slightly weaker. These results support the
+interface claim and weaken any RLS-specific claim.
+
+The most important ablations are the interface controls. A calibration matrix
+estimated but not used by the policy reaches 0.867 success. Scalar context
+reaches 0.744. Shuffled matrix state reaches 0.744. These are not useless, but
+they are clearly below structured current-map control. The distinction matters:
+memory alone is not the point. A policy needs the right decision variable, not
+just a recurrent vector.
+
+\section{Family C: Observability And Excitation}
+
+\input{../results/full_scale/table_observability.tex}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.82\linewidth]{figure_observability.pdf}
+\caption{Family C observability and excitation stress. CSC remains useful at
+low excitation but does not eliminate the observability assumption.}
+\label{fig:observability}
+\end{figure}
+
+Family C tests the main theoretical boundary: calibration state can only be
+estimated if recent actions reveal it. The generated low-excitation CSC success
+is 0.901. That is still strong, but it is lower than main-suite CSC success.
+Windowed SysID is also strong in this family, which again reinforces the
+policy-state interpretation. Frozen-start calibration is competitive when
+motion is limited, but it cannot represent ongoing drift.
+
+The excitation scores in the table are small because the command history is
+low-dimensional and clipped; the relative ordering is more useful than the
+absolute magnitude. A hardware study should report richer excitation metrics,
+including rank of local command covariance, image feature motion, and whether
+the task itself supplies enough probing. CSC should not be advertised as
+observability-free.
+
+\section{Family D: Noise, Latency, Dropout, And Outliers}
+
+\input{../results/full_scale/table_noise_latency.tex}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.82\linewidth]{figure_noise_latency.pdf}
+\caption{Family D robustness to observation noise, action noise, update delay,
+dropout, and outliers. The tested noise range does not erase the value of
+structured calibration state.}
+\label{fig:noise}
+\end{figure}
+
+Family D maps a robustness boundary rather than proving broad perception
+robustness. In the generated range, high-noise CSC success remains 1.000 and
+final error remains near oracle. Windowed SysID is also strong, with slightly
+higher final error. Frozen-start calibration is weaker because noise is not the
+only issue; drift continues after the initial map is known.
+
+This result should be read carefully. The observation noise model is simple and
+low-dimensional. It does not include segmentation failure, feature swaps,
+rolling-shutter effects, occlusion, delayed camera pipelines, or contact-driven
+state discontinuities. The paper therefore cannot claim robust visual servoing
+in real deployments. It can claim that, in a controlled drift simulator,
+moderate residual noise does not by itself remove the benefit of carrying a
+calibration map in policy state.
+
+\section{Family E: Conditioning And Fallback}
+
+\input{../results/full_scale/table_conditioning.tex}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.82\linewidth]{figure_conditioning.pdf}
+\caption{Family E near-singular calibration and fallback. The generated
+conditioning range does not separate the controllers strongly; condition-aware
+fallback preserves success and lowers command risk in the tested range.}
+\label{fig:conditioning}
+\end{figure}
+
+Near-singular maps are dangerous because inverse control can amplify noise into
+large commands. Family E lowers the scale floor and increases shear. In this
+generated range, all structured controllers remain near 0.979 success.
+Condition-aware fallback does not improve success over plain CSC because the
+stress is not severe enough to force many fallbacks. It does preserve the same
+success while keeping overshoot in the same low range.
+
+This is a boundary result, not a broad safety result. A stronger hardware or
+simulator test should push singularity harder and measure intervention rate,
+command saturation, and safety constraints. The important submission-safe
+point is that CSC exposes condition number as policy state. A policy can
+condition on this signal, choose fallback, or request probing; a hidden inverse
+cannot.
+
+\section{Family F: Drift-Event Recovery}
+
+\input{../results/full_scale/table_recovery.tex}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.82\linewidth]{figure_recovery.pdf}
+\caption{Family F recovery after abrupt, late, alternating, and burst drift
+events. Frozen-start calibration is most exposed when the map changes after the
+initial calibration.}
+\label{fig:recovery}
+\end{figure}
+
+Family F measures adaptation after discrete drift events. RLS-based CSC reaches
+0.986 recovery-family success, Windowed SysID is also strong, and oracle is
+near perfect. Frozen-start calibration is the vulnerable baseline: it is
+privileged at the start and then becomes stale. The abrupt-bump case is the
+clearest failure, with frozen-start success 0.528 versus 0.972 for both
+Windowed SysID and CSC.
+
+The recovery-step metric is intentionally rough because the task goal can
+change while recovery is happening. It is best read with peak event error and
+success. The qualitative pattern is stable: when calibration jumps, controllers
+that update the map inside the policy loop recover; frozen calibration cannot.
+
+\section{Family G: Planning And Control Utility}
+
+\input{../results/full_scale/table_planning.tex}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.82\linewidth]{figure_planning_tail_error.pdf}
+\caption{Family G short-horizon multi-goal utility stress. This family does
+not support a broad planning-dominance claim; it shows that calibration state
+matters but the hard short-horizon metric is sensitive to command burden and
+goal timing.}
+\label{fig:planning}
+\end{figure}
+
+Family G is deliberately less flattering. It shortens some horizons and changes
+goal periods, making final success harsh. Windowed SysID reaches 0.484 success,
+oracle 0.456, CSC 0.440, frozen-start 0.372, and nominal 0.302. Tail error
+places Windowed SysID, CSC, and oracle close together. The fact that oracle is
+not the best success number in this aggregate is a warning: success in this
+family is affected by goal timing, command burden, and horizon length, not only
+calibration quality.
+
+The safe conclusion is limited. Calibration state improves the control
+interface relative to nominal or frozen baselines, but this synthetic
+short-horizon utility stress does not prove planning dominance. Future work
+should evaluate long-horizon planning success, collision constraints, probing
+actions, and task completion under a more realistic controller.
+
+\section{Family H: Negative Controls}
+
+\input{../results/full_scale/table_negative_controls.tex}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.82\linewidth]{figure_negative_controls.pdf}
+\caption{Family H negative controls. Scalar context, matrix-not-policy,
+shuffled calibration, and random calibration are all weaker than structured
+current calibration state.}
+\label{fig:negative}
+\end{figure}
+
+Family H rules out weaker explanations. Scalar context reaches 0.694 success.
+A matrix estimate computed but not used by the policy reaches 0.792. Shuffled
+and random calibration states reach 0.653. Frozen-start reaches 0.833. CSC and
+oracle both reach 1.000 in this family. The control results support the
+structured-state claim: generic memory, stale calibration, or arbitrary matrix
+context is not enough.
+
+The delayed-oracle control is also informative. In this synthetic family,
+delayed oracle remains very strong because the map does not change fast enough
+to make a five-step old map harmful. That narrows the claim. CSC is valuable
+when current or recent calibration state matters; if drift is slow enough,
+stale state can be adequate.
+
+\section{Cross-Family Claim Synthesis}
+
+\input{../results/full_scale/table_claim_evidence.tex}
+
+Across all families, the evidence supports a specific thesis. Calibration
+state is a decision-relevant input for policies under drift. Controllers that
+carry a structured map inside the policy loop, such as RLS-based CSC and
+Windowed SysID, are consistently close to oracle and substantially stronger
+than nominal, low-gain, residual-bias, scalar-context, matrix-not-policy, and
+shuffled-state controls. The suite does not support a claim that RLS is the
+only good estimator, that CSC beats Windowed SysID in every metric, or that
+success in the short-horizon planning stress is solved.
+
+\paragraph{What is genuinely positive.}
+CSC reaches 0.997 main success with 0.0020 mean final error. It has lower
+aggregate final error than Windowed SysID in Family A. RLS forgetting variants
+are strong in Family B. CSC remains strong under low excitation and moderate
+noise. It recovers after drift events. Negative controls that use wrong or
+generic context are weaker.
+
+\paragraph{What is genuinely limiting.}
+Windowed SysID is a strong baseline and reaches 1.000 aggregate main success.
+Conditioning stress does not separate the controllers strongly. Family G does
+not show broad planning dominance. The simulation is local and low-dimensional.
+The paper has no real robot, visual feature pipeline, learned recurrent policy,
+or high-fidelity contact/kinematics simulator.
+
+\paragraph{Submission-safe claim.}
+The final claim is: calibration drift can be a decision-relevant hidden state,
+and policies should expose current calibration estimates in the action
+selection state when drift continues during rollout. The unsafe claim is:
+RLS-based CSC is a universally best online calibration algorithm or a
+deployment-ready safety mechanism.
 
 \section{Limitations}
 
-This paper is intentionally conservative. The environment is a local linear abstraction of calibration drift, not a real robot. The estimator is hand-designed, not learned. The v2 Windowed SysID result shows that a different online system-identification estimator can recover much of the same benefit, so this paper should not be read as an RLS-specific algorithmic win. The comparison still does not include end-to-end recurrent neural policies that might infer an equivalent latent state. The literature sweep is broad and hostile but automated from metadata and abstracts; it should guide human review, not replace it. CSC can also fail when the calibration map is unobservable, changes faster than the estimator, or becomes ill-conditioned.
+The evidence is synthetic. The calibration map is two-dimensional, locally
+linear, and directly observable from action-displacement residuals. Real
+robots have visual features, occlusions, contact changes, unmodeled compliance,
+latency, actuator saturation, and safety constraints. The estimator is
+hand-designed rather than learned. The strongest v3 baseline, Windowed SysID,
+shows that a different estimator can recover much of the benefit. A learned
+recurrent policy might infer an equivalent state internally. The literature
+sweep is broad and hostile but automated from metadata and abstracts; it is not
+a substitute for final manual reading of every cited paper.
+
+There are also metric limitations. Success can hide final-error differences
+when all structured controllers reach the goal. Final error can hide command
+burden. Tail error can be dominated by goal timing in short-horizon settings.
+Calibration error is meaningful only because the synthetic simulator exposes
+the true map. A hardware paper should add task success, intervention rate,
+unsafe command rate, calibration ground-truth checks where available, and
+operator-reset variation.
 
 \section{Reproducibility}
 
-All scripts are included. \texttt{scripts/collect\_literature.py} rebuilds the landscape matrix from OpenAlex. \texttt{scripts/synthesize\_literature.py} regenerates the novelty documents. \texttt{experiments/run\_calibration\_state\_sim.py} runs the 14,400 main rollouts plus the 2,400-rollout Windowed SysID baseline and writes CSVs, tables, and plots. \texttt{experiments/check\_formal\_claim.py} verifies the one-step ambiguity numbers.
+To reproduce the v3 evidence, run
+\[
+\texttt{python experiments/full\_scale\_calibration\_state.py}
+\]
+from the repository root. The runner writes \path{results/full_scale/} with
+family CSVs, summaries, generated figures, generated tables,
+\path{metadata.json}, and \path{progress.json}. A complete run reports
+1,681 seed rows, 14,614 episodes, and zero plot failures. The paper imports the
+generated tables and figures directly. The v2 compact simulator remains in
+\path{experiments/run_calibration_state_sim.py}, and the formal ambiguity check
+is in \path{experiments/check_formal_claim.py}.
 
 \section{Conclusion}
 
-Treating calibration as preprocessing hides a state variable that can be essential for embodied policies. CSC makes that variable explicit: calibration drift is carried as recurrent policy state and used to compute actions. The paper's formal example and simulation evidence do not settle the real-robot question, but they make the central mechanism falsifiable: when calibration drifts during the task, a policy that knows only observation and goal is missing part of the world.
+Calibration is not only a preprocessing detail. When it drifts during action,
+it can be a hidden state that determines which command is correct. This paper
+turns that observation into a concrete policy interface and a falsifiable
+synthetic benchmark. The results support a narrow but useful conclusion:
+structured calibration state should be carried inside the policy loop under
+drift. The next step is not to overclaim this simulator, but to test the same
+interface against learned recurrent policies, visual-servoing pipelines, and
+real robot calibration drift.
 
 \bibliographystyle{iclr2026_conference}
 \bibliography{references}
 
 \appendix
+\renewcommand{\thesection}{\arabic{section}}
 
-\section{Landscape Sweep Details}
+\section{Artifact-To-Claim Audit}
 
-The literature sweep collected 6,710 unique works across 26 query families covering robot calibration, hand-eye/extrinsic calibration, kinematic calibration, visual servoing, system identification, sim-to-real transfer, domain randomization, residual adaptation, tactile/contact calibration, morphology adaptation, robot foundation models, and observability. The matrix marks 300 serious-skim papers, 225 structured deep-read papers, and 100 hostile priors. Each important prior row records the problem claimed, mechanism introduced, hidden assumptions, variables treated as fixed, ignored failure modes, novelty threat, and remaining opening.
+The v3 evidence is generated, not transcribed by hand. The runner completed
+with \texttt{stage=complete}, 1,681 deterministic batch-row summaries, 14,614
+episodes, and zero plot failures. The manuscript imports generated tables and
+figures from \path{results/full_scale/}. The strongest positive result is that
+structured calibration-state controllers approach oracle performance in the
+main drift suite. The strongest narrowing result is that Windowed SysID is
+competitive or better on some success metrics, so the contribution is the
+policy-state interface rather than the RLS estimator.
 
-\section{Core Assumptions Broken By CSC}
+\section{Detailed Family Protocols}
 
-The field assumption broken here is that calibration may be estimated outside the policy loop. CSC instead assumes calibration can be nonstationary, task-coupled, and action-relevant. The full assumption ledger is in \texttt{docs/literature\_map.md}; examples include fixed extrinsics, static kinematics within an episode, visual feedback being sufficient without causal calibration state, and robust policies absorbing the full deployment drift distribution.
+\paragraph{Family A.}
+Family A compares seven controllers across eight drift modes: static,
+slow-walk, random-walk, abrupt-bump, severe-random-walk, sinusoidal,
+scale-only, and shear-heavy drift. Each row summarizes a small deterministic
+episode block. The purpose is to test the main interface claim under broad but
+controlled drift variation.
 
-\section{Formal Check}
+\paragraph{Family B.}
+Family B varies the estimator and whether the estimate enters action
+selection. RLS forgetting factors, Windowed SysID windows, no-forgetting RLS,
+matrix-not-policy, scalar context, shuffled matrix state, frozen calibration,
+and oracle are compared. This family is the main defense against an
+estimator-only story.
 
-The numerical formal check in \texttt{docs/formal\_claim\_check.md} gives the least-squares shared action for the two-map ambiguity instance. The best memoryless same-action command is $(0.5,-0.5)$, with expected squared error $0.5$. The calibration-state action has zero one-step error. This verifies the arithmetic in Proposition 1 and also states the adversarial caveats.
+\paragraph{Family C.}
+Family C varies excitation scale, exploratory dither, and goal period. It
+answers whether calibration state remains useful when the recent command
+history is less informative. Low excitation is not a solved case; it is a
+boundary that should appear in any real deployment claim.
+
+\paragraph{Family D.}
+Family D varies observation noise, action noise, update delay, dropout, and
+outlier probability. The tested range is moderate and should not be generalized
+to arbitrary visual failure. It is a controlled residual-noise stress.
+
+\paragraph{Family E.}
+Family E lowers scale floors and increases shear to create harder inverse
+control. It includes a condition-aware fallback controller. The generated range
+does not create a dramatic separation, which is reported as a limitation.
+
+\paragraph{Family F.}
+Family F creates drift events: abrupt bumps, late bumps, alternating
+rotation/scale events, and drift bursts. It measures success, peak event error,
+and recovery steps. This family is closest to the intuitive failure of offline
+calibration: the map is initially known and then changes.
+
+\paragraph{Family G.}
+Family G shortens horizons and changes goal periods to test planning/control
+utility. The aggregate is intentionally difficult and does not make oracle
+trivially dominant. It should be used as a warning against overclaiming from
+success alone.
+
+\paragraph{Family H.}
+Family H uses negative controls. Scalar context, matrix estimates that do not
+enter the policy, shuffled state, random state, delayed oracle state, frozen
+calibration, CSC, and oracle are compared. This family tests whether generic
+memory or arbitrary context explains the result.
+
+\section{Metric Definitions}
+
+\paragraph{Success.}
+An episode succeeds if final error is below the success threshold or recent
+tail tracking error is sufficiently small. This matches the tracking nature of
+the task while avoiding a single noisy endpoint.
+
+\paragraph{Final error.}
+The Euclidean distance from the final observation to the active final goal.
+This distinguishes high-success controllers that all reach the goal most of
+the time.
+
+\paragraph{Tail error.}
+The mean tracking error over the final ten steps. In short-horizon settings,
+tail error is often more informative than binary success.
+
+\paragraph{Calibration error.}
+The Frobenius norm between the controller's used map and the true hidden map,
+averaged over recent steps. It is available only because the simulator exposes
+ground truth.
+
+\paragraph{Condition.}
+The condition number of the used calibration map. It is a proxy for whether
+inverse control may amplify noise.
+
+\paragraph{Excitation.}
+A determinant-like score of recent command covariance. It is a crude proxy for
+whether recent actions contain enough directional information to identify the
+map.
+
+\paragraph{Recovery steps.}
+The number of steps from a drift event until tracking error returns below a
+threshold, or until the episode ends. It is approximate because task goals can
+change during recovery.
+
+\section{Formal Ambiguity Details}
+
+The formal example is intentionally minimal. Let the policy see only
+observation and goal displacement. If the hidden map is identity, the correct
+action is the goal displacement. If the hidden map is a 90-degree rotation, the
+correct action is the inverse-rotated goal. Both hidden worlds present the same
+input to a memoryless policy, so the policy must choose one action for both.
+No shared action is optimal for both maps.
+
+This is not a stability theorem. It is a state-sufficiency theorem for a small
+case. It shows that calibration can be a necessary state variable. A real
+policy might infer calibration from history, but then the inferred calibration
+is still policy state, only implicit.
+
+\section{Why Windowed SysID Strengthens Rather Than Weakens The Paper}
+
+The Windowed SysID baseline is hostile because it estimates the same kind of
+local action-observation map as CSC and feeds that map into the action
+computation. In Family A, it reaches 1.000 aggregate success and has only
+slightly higher final error than CSC. This means the paper cannot claim that
+RLS is the only or best estimator.
+
+That is good for the actual thesis. The thesis is that calibration drift should
+be represented as policy state. Windowed SysID is another calibration-state
+controller, so its success supports the interface. The estimator question
+remains open: RLS, windowed least squares, Kalman filtering, learned recurrent
+state, Bayesian filtering, or hybrid geometry-learning methods may all be
+reasonable ways to maintain the state.
+
+\section{Observability Notes}
+
+Calibration cannot be inferred from arbitrary behavior. If the robot only
+moves along one direction, the orthogonal action-observation relationship is
+weakly observed. If the task goal remains fixed and the controller quickly
+stops moving, residuals may be too small for reliable updates. If image
+features are lost, the observation residual can be wrong. Family C stresses
+this issue synthetically.
+
+A hardware implementation should report observability diagnostics. These could
+include recent command rank, visual-feature displacement, pose-estimation
+confidence, update innovation, and condition number of the identification
+problem. CSC should also support probing or fallback when the calibration state
+is under-observed.
+
+\section{Conditioning And Safety Notes}
+
+Inverse control can become unsafe when the calibration map is near singular.
+Small observation goals can require large commands, and noisy residuals can
+create unstable estimates. The v3 simulator clips commands and includes a
+condition-aware fallback. This is not enough for real robots. A deployment
+would need torque, velocity, collision, and workspace safety layers.
+
+The policy-state interface helps because it exposes condition number to the
+controller. A policy can choose slower probing, switch to low-gain control,
+request recalibration, or abstain. If calibration is hidden as preprocessing,
+the downstream policy may not know that its action map is ill-conditioned.
+
+\section{Negative Control Interpretations}
+
+\paragraph{Scalar context.}
+A scalar residual or gain estimate can improve over nominal control, but it
+cannot represent rotation and shear. Its lower success shows that not every
+memory signal is enough.
+
+\paragraph{Matrix not policy.}
+Estimating a matrix but then not using it in action computation leaves the
+policy-state interface broken. This control isolates the interface from the
+mere existence of an estimator.
+
+\paragraph{Shuffled and random state.}
+Wrong matrix structure is worse than stale but relevant structure. This control
+rules out the idea that any matrix-valued context helps.
+
+\paragraph{Delayed oracle.}
+Delayed oracle is strong in the tested negative-control family because drift is
+slow enough that recent state remains useful. This narrows the claim: exact
+current state is not always necessary, but relevant calibration state is.
+
+\section{Hardware Validation Protocol}
+
+A real robot validation should use a visual servoing or tool-use task where the
+action-observation map can drift during execution. Examples include an
+eye-in-hand camera with a deliberately flexed mount, a tool with a shifting
+tip offset, a mobile manipulator with payload-dependent camera pose, or a
+planar pushing setup where contact changes the effective action map.
+
+The robot should log observation, goal, command, estimated calibration state,
+condition number, residual innovation, safety fallback decisions, and measured
+task outcome. The evaluation should include static calibration, slow drift,
+abrupt perturbations, low-excitation goals, visual noise, delayed updates, and
+ill-conditioned configurations. Baselines should include offline calibration,
+visual servoing without explicit calibration state, robust low-gain control,
+online system identification, learned recurrent policies, and oracle or
+motion-capture calibration where possible.
+
+\section{Reviewer Self-Attacks}
+
+\paragraph{This is just online calibration.}
+Online calibration is prior art. The paper's claim is the policy-state
+interface: the calibration estimate must remain inside action computation when
+it changes during rollout.
+
+\paragraph{Windowed SysID is as good as CSC.}
+Often yes. That is why the paper frames the contribution around calibration
+state, not RLS. Windowed SysID is a strong calibration-state baseline.
+
+\paragraph{The simulator is too simple.}
+Correct. It is a mechanism artifact. Real robot and high-fidelity visual
+servoing validation are required for a stronger robotics claim.
+
+\paragraph{A recurrent neural policy might learn this.}
+Correct. A recurrent neural policy is a necessary future baseline. If it learns
+an internal action-observation map, that would support the state claim.
+
+\paragraph{The planning family is not decisive.}
+Correct. Family G is a hard utility stress and does not prove planning
+dominance. It is included to avoid overfitting the paper to easy success
+metrics.
+
+\section{Reporting Checklist}
+
+Future calibration-state work should report:
+\begin{itemize}[leftmargin=*]
+\item how calibration state is represented;
+\item whether the state is explicit or learned implicitly;
+\item whether the estimate is used directly in action computation;
+\item observability/excitation diagnostics;
+\item estimator latency and update delay;
+\item noise, dropout, and outlier stress;
+\item condition number and command saturation;
+\item frozen, online system-identification, recurrent-policy, and oracle
+baselines;
+\item task success, final error, command burden, and safety fallback rate.
+\end{itemize}
+
+\section{Reproducibility Checklist}
+
+To reproduce v3:
+\begin{enumerate}[leftmargin=*]
+\item Run \path{python experiments/full_scale_calibration_state.py}.
+\item Check \path{results/full_scale/progress.json}; it should report
+\texttt{stage=complete}.
+\item Check \path{results/full_scale/metadata.json}; it should report 1,681
+seed rows and 14,614 episodes.
+\item Confirm generated \path{table_*.tex} and \path{figure_*.pdf} files exist.
+\item Compile from \path{paper/} with \path{pdflatex}, \path{bibtex},
+\path{pdflatex}, \path{pdflatex}.
+\item Verify the final PDF contains the v3 marker, 1,681, 14,614, 0.997,
+1.000, 0.653, and the artifact-to-claim audit.
+\end{enumerate}
+
+\section{Calibration-State Taxonomy}
+
+The phrase ``calibration state'' can refer to several physically different
+quantities. The simulator uses a local action-observation map because it is the
+minimal quantity needed to test the policy interface. A robot implementation
+should state which calibration state is being carried.
+
+\paragraph{Camera-to-robot extrinsics.}
+An eye-in-hand or external camera transform maps robot motion into image or
+task coordinates. Mount flex, vibration, and accidental contact can change the
+effective transform during operation. If the policy uses visual goals, this
+transform is action-relevant state.
+
+\paragraph{Tool-center-point offsets.}
+A grasped tool, suction cup, marker, or surgical instrument can shift relative
+to the wrist. A fixed tool-center-point calibration may be correct at the
+beginning of the task and wrong after contact. Treating this offset as state
+lets the policy adapt commands without pretending the tool geometry is fixed.
+
+\paragraph{Kinematic parameters.}
+Joint offsets, link flex, wheel radii, and compliance change how commands
+produce body or end-effector motion. Online kinematic calibration estimates
+these quantities, but the policy still needs the current estimate and its
+conditioning when choosing actions.
+
+\paragraph{Local contact-induced maps.}
+When a tool presses against an object, the effective action-observation map can
+depend on contact geometry. A push can turn into a slide, pivot, or jam. The
+state need not be a camera transform; it can be a local Jacobian from command
+space to observed object motion.
+
+\paragraph{Latent learned calibration.}
+A recurrent neural policy might encode calibration implicitly in hidden units.
+That can be a valid implementation. The reporting requirement is then to test
+whether the hidden state actually tracks action-observation structure, rather
+than only memorizing recent rewards or residual magnitudes.
+
+\section{Algorithmic Interface}
+
+The state-interface version of CSC has four steps:
+\begin{enumerate}[leftmargin=*]
+\item Predict or observe the desired displacement $\delta_t=\goal_t-\obs_t$.
+\item Choose an action using both task state and calibration state:
+$\act_t=\pi(\obs_t,\goal_t,\cmaphat_t,\cov_t,\kappa_t)$.
+\item Execute the action and observe displacement
+$\Delta\obs_t=\obs_{t+1}-\obs_t$.
+\item Update calibration state from $(\act_t,\Delta\obs_t)$ and expose the new
+state to the next action decision.
+\end{enumerate}
+The key property is the feedback path from calibration estimate to action.
+Estimating $\cmaphat_t$ in a background module is not enough if the policy still
+acts as though $\cmap=I$ or $\cmap=\cmap_0$. Family B's matrix-not-policy control
+tests exactly this failure: it computes a matrix estimate but does not feed the
+estimate into action computation, and it performs worse than structured
+calibration-state controllers.
+
+There are multiple valid responses to a bad calibration state. The policy can
+use inverse control when the map is well conditioned, switch to low gain when
+condition number is high, execute probing actions when excitation is low, ask
+for a recalibration routine, or abstain. The v3 implementation uses simple
+clipping and one condition-aware fallback to keep the experiment interpretable,
+but the interface is broader than that particular controller.
+
+\section{Estimator Variants And What They Mean}
+
+\paragraph{RLS with forgetting.}
+RLS is useful when the map changes smoothly and residuals are informative. A
+smaller forgetting factor adapts faster but can chase noise. A larger forgetting
+factor is stable but can lag after abrupt changes. Family B includes a
+forgetting sweep. The strong results for multiple forgetting factors show that
+the conclusion is not tuned to one value.
+
+\paragraph{Windowed least squares.}
+Windowed SysID discards old transitions and fits the current map from a recent
+buffer. It is a hostile baseline because it also carries calibration state
+inside the policy loop. Its strength is the reason the paper does not claim
+RLS-specific novelty. The remaining distinction is final error, calibration
+error, recovery behavior, and the fact that both methods instantiate the same
+policy-state principle.
+
+\paragraph{Residual-bias adaptation.}
+Residual-bias adaptation carries memory but not the map. It can correct a
+consistent average error, but it cannot represent rotations, anisotropic scale,
+or shear. Its weaker results show that not every adaptive controller is a
+calibration-state controller.
+
+\paragraph{Scalar context.}
+Scalar context estimates a recent magnitude relationship between command and
+displacement. It helps when drift is mostly gain-like but fails under rotation
+or shear. This is a useful negative control because it has memory and residual
+feedback but lacks the structure required by the task.
+
+\paragraph{Learned recurrent state.}
+A learned recurrent state could replace all hand-designed estimators. To make
+that comparison meaningful, the recurrent policy should be trained across the
+same drift modes and evaluated on held-out drift rates, excitation profiles,
+noise levels, and abrupt events. If it matches CSC while its hidden state
+linearly decodes the true map, it would support the paper. If it succeeds
+without decodable calibration state, it would suggest another representation
+can solve the same interface problem.
+
+\section{Learned Recurrent Baseline Protocol}
+
+The strongest missing baseline is an end-to-end recurrent policy trained under
+calibration drift. A fair protocol would train a recurrent policy on the same
+observation, goal, action, and residual streams used by CSC. The recurrent
+policy should not receive the true map. It should be trained across static,
+smooth, abrupt, sinusoidal, scale-only, rotation-only, and shear-heavy drift.
+Evaluation should hold out drift amplitudes, event timings, observation noise,
+goal periods, and excitation profiles.
+
+The comparison should report three layers of evidence. First, task metrics:
+success, final error, tail error, command burden, and recovery after drift
+events. Second, state diagnostics: whether the hidden state predicts the true
+calibration map, condition number, or future residuals. Third, intervention
+behavior: whether the policy probes when excitation is low and whether it
+reduces gain or abstains when conditioning is poor.
+
+There are several possible outcomes. If the recurrent policy beats explicit
+CSC and its hidden state decodes calibration, then the explicit state can be
+viewed as an interpretable baseline and diagnostic. If the recurrent policy
+beats CSC without decodable calibration, the paper's interface claim should be
+weakened or reframed. If the recurrent policy fails under held-out drift while
+CSC transfers, the explicit factorization gains support. This protocol is a
+clear next step for main-track strength.
+
+\section{Hardware Benchmark Proposal}
+
+A hardware benchmark should create repeatable calibration drift without
+endangering the robot. One setup is a planar visual-servoing task with a camera
+mount that can be gently shifted during execution. Another is a tool-tip
+tracking task where the tool slips in a compliant holder. A third is mobile
+manipulation with a payload-dependent camera or wrist offset. The task should
+have measurable visual goals, command logs, and an independent ground-truth
+measurement of calibration where possible.
+
+The benchmark should include:
+\begin{itemize}[leftmargin=*]
+\item static calibration episodes to verify that frozen calibration is a strong
+baseline when its assumption is true;
+\item slow drift episodes to test filtering;
+\item abrupt perturbations to test recovery;
+\item low-excitation goals to expose observability failure;
+\item high-noise and delayed-vision settings;
+\item near-singular configurations that require fallback;
+\item long-horizon tasks where errors compound.
+\end{itemize}
+The evaluation should compare offline calibration, robust low gain,
+uncalibrated visual servoing, online system identification, explicit CSC,
+learned recurrent policies, and oracle or motion-capture calibration when
+available.
+
+The hardware paper should report failures by cause. A failure can come from
+poor excitation, perception error, estimator lag, a wrong calibration factor,
+action saturation, or a planner selecting goals too quickly. Without this
+breakdown, a single success rate can hide the reason calibration state helped
+or failed.
+
+\section{Data Schema And Audit Trail}
+
+The v3 runner writes one seed-row summary per setting, controller, and seed
+block. Each row includes family, setting, drift mode, controller, seed,
+episode count, stress parameters, and metrics. The summary files aggregate
+those rows by family-specific keys. The generated tables are thin views over
+the summary CSVs. The figures are generated from the same summary files.
+
+This layout is deliberate. The paper should not rely on notebook state,
+manual transcription, or screenshots. A reader can inspect
+\path{results/full_scale/metadata.json} to verify family sizes, inspect
+\path{progress.json} to verify completion, and inspect the family CSVs to
+recompute the reported tables. The manuscript then imports the generated
+tables directly.
+
+The main audit invariants are:
+\begin{itemize}[leftmargin=*]
+\item progress stage is \texttt{complete};
+\item plot failures are zero;
+\item metadata reports 1,681 seed rows and 14,614 episodes;
+\item the main table reports CSC success 0.997 and Windowed SysID success
+1.000;
+\item the negative-control table reports shuffled success 0.653;
+\item the PDF text contains the v3 marker and the same headline numbers.
+\end{itemize}
+
+\section{Falsifiers}
+
+The paper is useful only if its claim is falsifiable. The following outcomes
+would weaken or falsify the current version.
+
+\paragraph{Generic recurrent context wins without calibration structure.}
+If a learned recurrent policy or scalar context baseline beats CSC across held
+out drift and does not encode the action-observation map, then explicit
+calibration state is not necessary for this class of tasks.
+
+\paragraph{Calibration state is not observable during useful behavior.}
+If real tasks rarely excite enough directions to identify the map, and probing
+actions are too costly, CSC may be impractical even if the state is
+decision-relevant in theory.
+
+\paragraph{Visual servoing closes the gap.}
+If uncalibrated visual servoing with robust feedback matches calibration-state
+controllers under drift, then the value of explicit calibration state is
+smaller than claimed for that domain.
+
+\paragraph{Conditioning dominates.}
+If near-singular maps cause inverse-control failures more often than drift
+causes action ambiguity, then safety-oriented fallback may be the main problem
+rather than calibration-state estimation.
+
+\paragraph{Hardware drift is dominated by unmodeled factors.}
+If real drift is caused by contacts, deformation, or perception failures that
+cannot be represented as a local action-observation map, the factorization used
+here is too narrow.
+
+\section{Risk Register}
+
+\paragraph{Risk: the paper sounds like online calibration novelty.}
+Mitigation: state repeatedly that online calibration is prior art. The novelty
+is the policy-state interface and the formal ambiguity showing why calibration
+can be decision-relevant.
+
+\paragraph{Risk: Windowed SysID is too strong.}
+Mitigation: treat it as support for the interface. Windowed SysID carries a
+map in policy state. The claim is not that RLS is uniquely good.
+
+\paragraph{Risk: the simulator is too easy.}
+Mitigation: include eight families, negative controls, observability stress,
+noise stress, conditioning stress, and a difficult planning/control utility
+family. Still admit that hardware validation is missing.
+
+\paragraph{Risk: success saturates.}
+Mitigation: report final error, calibration error, tail error, recovery steps,
+and negative controls. Family A success saturates for structured controllers,
+but final error and calibration error still separate them.
+
+\paragraph{Risk: the planning family is messy.}
+Mitigation: do not overclaim. Family G is a stress test showing that
+calibration state matters but does not solve planning under short horizons.
+
+\section{Additional Related-Work Boundaries}
+
+\paragraph{Against uncalibrated visual servoing.}
+Uncalibrated visual servoing can close loops without explicit camera
+calibration. CSC asks a different interface question: when an online
+action-observation estimate exists, should the policy condition on it as
+state? In some visual servoing systems the answer may already be implicit; the
+paper provides a benchmark and terminology for that interface.
+
+\paragraph{Against system identification.}
+System identification estimates parameters. CSC uses the estimate to choose
+actions and exposes its conditioning to the policy. A SysID module that writes
+logs but does not affect action computation is insufficient.
+
+\paragraph{Against domain randomization.}
+Domain randomization can train policies to tolerate calibration variation, but
+it can also hide which calibration is active. CSC is complementary: a policy
+can be randomized during training and still condition on an online estimate at
+deployment.
+
+\paragraph{Against latent-context adaptation.}
+Latent-context adaptation is broader than CSC. The advantage of CSC is not
+generality; it is a physically interpretable factor that is easy to log, audit,
+and stress. A learned latent policy should be compared against this explicit
+factor, not treated as identical by default.
+
+\section{Extended Interpretation Of Family G}
+
+Family G is intentionally difficult. Some episodes use short horizons and fast
+goal changes. Under these conditions, a controller with perfect calibration can
+still fail to meet the binary success criterion because it has too little time
+to reach a new goal. This explains why oracle is not the highest success row in
+the aggregate. It does not mean oracle is worse at calibration. It means the
+metric is mixing calibration quality with time budget, command clipping, and
+goal schedule.
+
+For that reason, Family G is not used as the headline positive result. It is an
+honesty check. If the paper only reported easy tracking success, it would be
+tempting to overstate planning utility. Family G shows that action selection
+under drift is a larger problem: calibration state is useful, but planning
+needs horizon awareness, probing decisions, command limits, and task-level
+objectives.
+
+\section{Submission Acceptance Rationale}
+
+This v3 paper is submission-ready only under the narrow synthetic mechanism
+claim. It now has a full manuscript, a formal ambiguity, eight experiment
+families, strong baselines, negative controls, generated figures and tables,
+and clear limitations. It is not padded: the added length is methods,
+protocols, results, failure analysis, and reproducibility detail.
+
+The acceptance argument is that calibration drift is a state-interface problem
+that deserves a precise benchmark and vocabulary. The paper should not be
+accepted as a real-robot calibration solution, and it should not be accepted
+because RLS beats every alternative. It should be accepted if reviewers value a
+clean mechanism, a hostile baseline that narrows the claim, and a reproducible
+stress suite that future learned or hardware systems can try to beat.
+
+\section{Worked Failure Cases}
+
+\paragraph{Stale camera extrinsics.}
+Consider an eye-in-hand visual servoing policy that was calibrated before the
+task. The camera mount flexes after contact with a fixture, rotating the image
+motion induced by wrist commands. The observation and goal can look identical
+before and after the flex, but the command that moves the image feature right
+has changed. A frozen-start policy continues to use the old map. A low-gain
+policy moves slowly in the wrong direction. A residual-bias policy may correct
+some average drift but cannot represent the rotation. A calibration-state
+policy updates the action-observation map and changes the next command.
+
+\paragraph{Tool-tip slip.}
+A robot grasps a tool whose tip offset slips after a contact-rich insertion.
+The nominal wrist command no longer produces the same tool-tip displacement.
+The state of the world for action selection includes this offset. If the policy
+receives only the observed tool tip and goal, it cannot distinguish a tool that
+is still aligned from a tool that slipped but happens to be at the same current
+pose. Calibration state disambiguates the action.
+
+\paragraph{Low excitation.}
+A task may repeatedly move along one visual axis. The controller observes
+residuals only for that direction and cannot identify the orthogonal column of
+the map. CSC should not pretend otherwise. A well-designed policy should
+either remain conservative, add a small probing motion, or ask for a
+recalibration procedure. Family C is the synthetic version of this case.
+
+\paragraph{Near-singular map.}
+If the camera view or mechanism geometry makes one command direction barely
+visible, inverse control can request large actions. Here, calibration state is
+not enough; the policy also needs condition number, command limits, and a
+fallback rule. Family E is a mild version of this case and should be made more
+severe in future hardware work.
+
+\paragraph{Wrong factorization.}
+If the apparent calibration drift is actually caused by object deformation,
+slip-stick contact, or a hidden joint state, a 2D action-observation matrix is
+the wrong state variable. CSC can then fail gracefully only if the policy
+monitors residual innovation and recognizes that the calibration model is not
+explaining the data.
+
+\section{Command Burden And Safety Interpretation}
+
+Calibration-state control should not be evaluated only by reaching the goal.
+An inverse map can reach a goal by issuing large or oscillatory commands. The
+v3 runner therefore logs total command norm and overshoot rate. In the
+generated suite, structured controllers are close in command burden, but this
+will not always hold. A real robot could prefer a slightly less accurate
+controller if it uses safer actions.
+
+Command burden also changes how planning should use calibration state. If
+condition number is high, the policy may know the correct direction but still
+choose not to move aggressively. This is not a failure of calibration-state
+estimation; it is a safety decision. The policy state should include both the
+map and the confidence/conditioning signals needed to decide how much to trust
+the inverse.
+
+The strongest deployment design is layered. A calibration-state policy proposes
+an action. A safety layer clips commands, checks workspace and collision
+constraints, and monitors whether residuals match the model. If the calibration
+state is uncertain, the system can switch to probing, low-gain servoing, or a
+manual recalibration procedure. The paper's simple clipping is only a proxy for
+this layered control stack.
+
+\section{Observability Math Sketch}
+
+In the local linear model, recent data provide pairs
+$(\act_i,\Delta\obs_i)$ with
+\[
+  \Delta\obs_i = \cmap \act_i+\epsilon_i.
+\]
+Stacking commands into a matrix $U$ and displacements into $Y$, a least-squares
+map estimate solves
+\[
+  \min_{\cmap}\|Y-U\cmap^\top\|_F^2+\rho\|\cmap\|_F^2.
+\]
+If $U^\top U$ is poorly conditioned or rank deficient, some directions of
+$\cmap$ are weakly identified. This is the mathematical version of low
+excitation. A policy can still act, but it should know the calibration state is
+uncertain in those directions.
+
+RLS and Windowed SysID make different choices about this data. RLS keeps all
+past data with exponential forgetting. Windowed SysID discards older data and
+fits a recent window. RLS can be smoother; Windowed SysID can adapt quickly to
+abrupt changes. Neither escapes the rank condition. If recent commands do not
+span the relevant action space, both estimators must rely on priors, old data,
+or probing.
+
+This sketch also explains why a scalar context is insufficient. A scalar gain
+can estimate average command magnitude, but it cannot represent off-diagonal
+terms, rotation, shear, or anisotropy. The formal ambiguity example is the
+extreme case: the correct command changes direction, not only magnitude.
+
+\section{Decision Policies Enabled By Calibration State}
+
+The policy-state interface enables several decisions that an offline
+calibration interface hides.
+
+\paragraph{Use.}
+When calibration state is well conditioned, recently observed, and consistent
+with residuals, the controller can use inverse control or a learned policy
+conditioned on $\cmaphat_t$.
+
+\paragraph{Probe.}
+When excitation is low, the policy can choose an information-gathering action
+before attempting a precise motion. This is especially important for tasks
+where the goal direction does not excite all relevant columns of the map.
+
+\paragraph{Fallback.}
+When condition number is high or innovation is inconsistent, the policy can
+fall back to low-gain visual servoing, a guarded move, or a recalibration
+routine. Family E is only a small demonstration of this idea.
+
+\paragraph{Abstain.}
+When calibration uncertainty is high and the task is safety-critical, the
+right action may be no action. This is outside the synthetic success metric but
+central for real robots.
+
+\paragraph{Learn.}
+Calibration-state residuals can guide data collection. A repeated mismatch
+between predicted and observed displacement indicates either estimator lag, low
+excitation, wrong factorization, or unmodeled dynamics. Logging this reason is
+more useful than logging only task failure.
+
+\section{How To Read The Headline Numbers}
+
+The headline numbers are deliberately mixed. CSC main success is 0.997, which
+is strong. Windowed SysID main success is 1.000, which prevents overclaiming.
+CSC final error is 0.0020, better than Windowed SysID's 0.0037 and close to
+oracle's 0.0015. Shuffled calibration success is 0.653, which shows that wrong
+matrix context is not enough. Matrix-not-policy success is 0.792 in the
+negative-control family, showing that estimation without action conditioning is
+not the same interface.
+
+These numbers should be read as a claim hierarchy. The top-level claim is that
+structured calibration state is useful. The second-level claim is that
+RLS-based CSC is one effective implementation. The third-level claim, which is
+not supported, would be that RLS-based CSC dominates every online estimator.
+The paper intentionally stops before that third claim.
+
+\section{What A Stronger Version Would Need}
+
+A stronger version would add three missing pieces. First, a learned recurrent
+policy baseline trained across the same drift distribution and evaluated on
+held-out drift modes. Second, a higher-fidelity visual-servoing or manipulation
+simulator with image features, camera latency, feature loss, and robot command
+limits. Third, a hardware task where calibration drift is deliberately induced
+and independently measured.
+
+It would also need a deeper manual related-work audit around uncalibrated
+visual servoing, calibration-free hand-eye coordination, adaptive visual
+tracking, and latent-context robot adaptation. The current literature matrix is
+large and hostile, but it is still metadata/abstract-driven. A final
+main-conference version should manually read and position the closest papers.
+
+Finally, a stronger version should make probing explicit. If calibration is
+policy state, the robot can select actions not only to reach goals but also to
+improve that state. This connects CSC to active system identification and safe
+exploration, which are natural but untested extensions of the current paper.
+
+\section{Artifact Maintenance Notes}
+
+The repository keeps the old v2 simulator and results because they are useful
+historical evidence. The v3 paper, however, should be judged by
+\path{experiments/full_scale_calibration_state.py} and \path{results/full_scale/}.
+The final PDF should contain the v3 marker and should not be replaced in
+Downloads until the local build reaches at least 25 pages and passes text/log
+checks.
+
+The script runtime is longer than the smaller v2 runner because it executes
+eight families sequentially. This is intentional. It keeps memory use low and
+leaves partial progress in \path{progress.json}. If interrupted, the file shows
+which family completed last. The final committed run reports stage
+\texttt{complete}; partial outputs should not be used for manuscript claims.
+
+\section{Reviewer Reading Guide}
+
+A fair review should start from the claim boundary. The paper is not saying
+that online calibration is new, and it is not saying that RLS-based CSC is
+better than every online estimator. The strongest reading is: calibration drift
+can be a decision-relevant hidden state, and robot policies should expose
+current calibration estimates inside the state used to compute actions.
+
+The main positive evidence is Family A plus the formal ambiguity. Family A
+shows that structured calibration-state controllers approach oracle
+performance across moving drift. The formal ambiguity shows why observation and
+goal alone can be insufficient. The main narrowing evidence is Family B:
+Windowed SysID is strong, so estimator novelty is not the claim. The main
+negative-control evidence is Family H: scalar, shuffled, random, and
+matrix-not-policy controls are weaker, so the result is not merely generic
+memory.
+
+A reviewer should not reject the paper because Windowed SysID is competitive;
+that is already acknowledged and built into the final thesis. A reviewer should
+reject or downgrade the paper if they require real-robot validation, learned
+recurrent baselines, or high-fidelity visual servoing before accepting any
+calibration-state claim. The paper's intended contribution is a mechanism
+artifact and stress suite that make those next comparisons precise.
+
+\section{Per-Family Acceptance Criteria}
+
+\paragraph{Family A.}
+Acceptance criterion: structured map-in-policy controllers should approach
+oracle and improve over frozen calibration under moving drift. This is
+satisfied by CSC success 0.997, Windowed SysID success 1.000, frozen success
+0.951, and oracle success 1.000. The final-error ordering keeps the result
+nuanced: CSC is closer to oracle than Windowed SysID on aggregate final error.
+
+\paragraph{Family B.}
+Acceptance criterion: the interface claim should survive estimator variation
+and should fail when the estimate is not used by the policy. This is satisfied:
+multiple RLS and Windowed SysID variants are strong, while matrix-not-policy,
+scalar context, and shuffled state are weaker.
+
+\paragraph{Family C.}
+Acceptance criterion: low excitation should degrade or threaten calibration
+state rather than being ignored. This is partially satisfied. CSC remains
+strong at 0.901 under low excitation, but this is lower than the main setting
+and the appendix explicitly treats observability as a real assumption.
+
+\paragraph{Family D.}
+Acceptance criterion: moderate residual noise, update delay, dropout, and
+outliers should not erase the mechanism in the generated range. This is
+satisfied for the synthetic range, but the text refuses to generalize to real
+visual failures.
+
+\paragraph{Family E.}
+Acceptance criterion: conditioning should be surfaced as policy state, even if
+the tested range does not produce a large success gap. This is satisfied as a
+boundary result. The family does not justify a strong safety claim.
+
+\paragraph{Family F.}
+Acceptance criterion: stale calibration should fail most when the map changes
+after the initial calibration. This is satisfied in abrupt bumps, where
+frozen-start success is 0.528 and CSC/Windowed SysID reach 0.972.
+
+\paragraph{Family G.}
+Acceptance criterion: the paper should test a harder utility setting and avoid
+claiming broad planning dominance. This is satisfied because the family is
+reported as messy and non-decisive rather than hidden.
+
+\paragraph{Family H.}
+Acceptance criterion: generic memory or wrong calibration state should not
+explain the main result. This is satisfied by shuffled state at 0.653, scalar
+context at 0.694, and matrix-not-policy at 0.792, all below CSC and oracle in
+the negative-control family.
+
+\section{Final Claim Ladder}
+
+The results should be read as a ladder of increasingly strong claims. The
+first claim is proved by construction: calibration can be decision-relevant in
+a one-step linear system. The second claim is supported by the full-scale
+suite: in a controlled drift simulator, policies that carry structured
+calibration state approach oracle behavior and beat stale or generic-context
+baselines. The third claim is plausible but not proven: explicit
+calibration-state interfaces will help real robots under drift. The fourth
+claim is unsupported: RLS-based CSC is the best possible estimator or a
+deployment-ready safety mechanism.
+
+This ladder is important because it prevents accidental overclaiming. The paper
+should be judged on the first two claims. It provides a concrete path for the
+third claim and rejects the fourth. That is why the manuscript includes strong
+baselines and negative results instead of only the easiest success table.
+
+\section{Unsupported Claims}
+
+The paper does not claim real-robot validation, deployment-ready calibration
+safety, global observability, global stability, novelty for online
+calibration, novelty for RLS, dominance over all learned recurrent policies, or
+that Windowed SysID is inferior in every metric. It does not claim that the
+synthetic noise model covers real perception. It claims that calibration drift
+is a decision-relevant hidden state and that exposing structured calibration
+state to the policy is a useful interface.
+
+\section{Final Audit Paragraph}
+
+The full-scale runner completed with stage \texttt{complete}, 1,681
+deterministic batch-row summaries, 14,614 episodes, and zero plot failures.
+The main result is that RLS-based CSC reaches 0.997 aggregate main success and
+0.0020 final error, while frozen-start calibration reaches 0.951 success and
+0.0176 final error. The strongest estimator baseline, Windowed SysID, reaches
+1.000 success and 0.0037 final error, so the claim is calibration as policy
+state rather than RLS-specific superiority. Negative controls are weaker:
+shuffled calibration state reaches 0.653 success, scalar context 0.694, and a
+matrix estimate not fed to the policy 0.792. The paper is therefore
+submission-ready only under the narrow synthetic mechanism claim.
 
 \end{document}

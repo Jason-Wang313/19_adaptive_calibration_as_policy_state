@@ -1,0 +1,48 @@
+{
+  "master_seed": 19019,
+  "families": {
+    "A": "main controller comparison",
+    "B": "estimator and interface ablations",
+    "C": "observability and excitation stress",
+    "D": "noise latency dropout outliers",
+    "E": "conditioning and fallback",
+    "F": "drift event recovery",
+    "G": "planning control utility",
+    "H": "negative controls"
+  },
+  "seed_rows": {
+    "A": 224,
+    "B": 135,
+    "C": 288,
+    "D": 344,
+    "E": 162,
+    "F": 144,
+    "G": 240,
+    "H": 144
+  },
+  "episodes": {
+    "A": 2688,
+    "B": 1350,
+    "C": 2304,
+    "D": 2752,
+    "E": 1296,
+    "F": 1152,
+    "G": 1920,
+    "H": 1152
+  },
+  "total_seed_rows": 1681,
+  "total_episodes": 14614,
+  "elapsed_seconds": 1233.4410914999899,
+  "headline": {
+    "csc_main_success": 0.9973958333333333,
+    "frozen_main_success": 0.9505208333333333,
+    "windowed_main_success": 1.0,
+    "windowed_estimator_success": 0.9977777777777778,
+    "low_excitation_csc_success": 0.9010416666666666,
+    "high_noise_csc_success": 1.0,
+    "fallback_success": 0.9791666666666666,
+    "csc_recovery_success": 0.9861111111111112,
+    "csc_planning_tail_error": 0.36680862609849507,
+    "shuffled_success": 0.6527777777777778
+  }
+}
