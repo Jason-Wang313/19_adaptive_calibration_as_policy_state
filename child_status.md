@@ -1,7 +1,7 @@
 # Child Status
 
 ## Current Stage
-Submission hardening v3 complete.
+Submission hardening v3 complete; VLA-style boxed-link hardening complete.
 
 ## Latest Actions
 - Added `README.md` and `requirements.txt`.
@@ -20,7 +20,11 @@ Submission hardening v3 complete.
 - Expanded `paper/main.tex` into a 25-page v3 manuscript.
 - Copied final v3 PDF to `C:\Users\wangz\Downloads\19.pdf`.
 - Final v3 PDF is 25 pages and 433568 bytes.
-- Final v3 PDF SHA256 is `A315127510349C88F29DDB15C40C0B0E916EB979227D809666210A9E773B4EB4`.
+- Final v3 PDF SHA256 is `95CCDC986E46AE1EBA511A169CC3450DEFF76D0F214BF214C6AF05C83D9D604E`.
+- Added explicit VLA-style `hyperref` boxed-link styling.
+- Rebuilt and re-exported the final PDF to `C:\Users\wangz\Downloads\19.pdf`.
+- Final link inventory: 53 annotations on pages `[(2, 43), (3, 10)]`; colors green = 53, red = 0, cyan = 0; all borders `(0, 0, 1)`.
+- Rendered and visually checked affected link pages 2 and 3.
 
 ## Commands Run
 - `git add -A; ... git commit -m "Add adaptive calibration policy-state paper"; ...; exit 0`

@@ -1,6 +1,6 @@
 # Submission Attack Log
 
-Updated: 2026-06-14
+Updated: 2026-06-20
 
 ## V2 Attack Rounds
 
@@ -22,6 +22,7 @@ Recoverable v2 baseline weakness was addressed. Remaining weaknesses motivated t
 4. **Generic memory may be enough.** Family H adds scalar, matrix-not-policy, shuffled, random, delayed-oracle, CSC, and oracle controls.
 5. **Observability handwave.** Family C explicitly stresses excitation and the manuscript treats low excitation as a boundary.
 6. **Planning utility overclaimed.** Family G is included as a hard stress and is explicitly not used as broad planning-dominance evidence.
+7. **PDF link styling depends on implicit defaults.** Added explicit `hyperref` border colors, rebuilt the final PDF, and visually checked all affected link pages against the VLA-v4 role model.
 
 ## V3 Terminal Assessment
 

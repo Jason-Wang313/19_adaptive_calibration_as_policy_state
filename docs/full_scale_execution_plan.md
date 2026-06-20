@@ -266,3 +266,17 @@ Paper 19 is not final until all items are true:
 - `git diff --check` passes.
 - Repo is committed and pushed.
 - `git status --short --branch` is clean and local HEAD matches upstream.
+
+## 2026-06-20 VLA-Style Link Hardening Addendum
+
+After the v3 scientific content was finalized, the canonical PDF was rebuilt
+with explicit VLA-style `hyperref` boxed-link settings. This addendum does not
+change experiments, claims, figures, tables, bibliography content, or page
+count. It only hardens final PDF presentation:
+
+- citation and URL links use green one-point boxes;
+- internal section/table/figure links would use red one-point boxes when
+  present as link annotations;
+- no cyan URL boxes appear;
+- affected link pages 2 and 3 were rendered and visually checked against the
+  visible VLA-v4 role model.

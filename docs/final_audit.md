@@ -60,7 +60,9 @@ Absent after v2 hardening cleanup. The canonical PDF is only `C:/Users/wangz/Dow
 - Paper expanded with fresh v3 results.
 - Direct `pdflatex`, `bibtex`, `pdflatex`, `pdflatex` build succeeded.
 - Final v3 PDF copied to `C:/Users/wangz/Downloads/19.pdf` and is 433,568 bytes.
-- Final v3 PDF SHA256 is `A315127510349C88F29DDB15C40C0B0E916EB979227D809666210A9E773B4EB4`.
+- Final v3 PDF SHA256 is `95CCDC986E46AE1EBA511A169CC3450DEFF76D0F214BF214C6AF05C83D9D604E`.
+- VLA-style link markers: 53 link annotations; pages `[(2, 43), (3, 10)]`; colors green = 53, red = 0, cyan = 0; all borders `(0, 0, 1)`.
+- Visual link-page render check: pages 2 and 3 show green citation/URL boxes matching the visible VLA-v4 role model; no cyan boxes appear. No red internal-reference link annotations are present in the final PDF inventory.
 - PDF text extraction verified the visible `Submission-hardening version: v3` note, 1,681, 14,614, 0.997, 1.000, 0.653, and final audit text.
 - Local `paper/main.pdf` was removed after the canonical Downloads copy was verified.
 - Public GitHub repository created and pushed at `https://github.com/Jason-Wang313/19_adaptive_calibration_as_policy_state`.

@@ -32,3 +32,11 @@ The evidence does not support RLS-specific dominance. Windowed SysID is a strong
 calibration-state baseline and reaches 1.000 main success. The final claim is
 therefore intentionally narrow: calibration as policy state, not a universal
 online-calibration algorithm.
+
+## Final PDF
+
+- Path: `C:/Users/wangz/Downloads/19.pdf`
+- Pages: 25
+- Bytes: 433,568
+- SHA256: `95CCDC986E46AE1EBA511A169CC3450DEFF76D0F214BF214C6AF05C83D9D604E`
+- VLA-style boxed-link audit: 53 annotations on pages `[(2, 43), (3, 10)]`; colors green = 53, red = 0, cyan = 0; all borders `(0, 0, 1)`.

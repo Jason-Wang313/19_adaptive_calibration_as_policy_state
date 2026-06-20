@@ -12,6 +12,15 @@ This repository contains the paper-19 child-agent output for **Adaptive Calibrat
 - `results/full_scale/`: v3 CSV summaries, generated tables, figures, metadata, and progress audit.
 - `docs/final_audit.md`: final readiness audit.
 
+## Final PDF Verification
+
+- Path: `C:/Users/wangz/Downloads/19.pdf`
+- Pages: 25
+- Bytes: 433,568
+- SHA256: `95CCDC986E46AE1EBA511A169CC3450DEFF76D0F214BF214C6AF05C83D9D604E`
+- VLA-style boxed links: 53 annotations on pages `[(2, 43), (3, 10)]`; colors green = 53, red = 0, cyan = 0; all borders `(0, 0, 1)`.
+- Visual render check: pages 2 and 3 show green citation/URL boxes; no cyan boxes appear. No red internal-reference link annotations are present in the final PDF inventory.
+
 ## Reproduce
 Install Python dependencies:
 
