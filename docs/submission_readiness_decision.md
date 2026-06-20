@@ -9,6 +9,7 @@ Decision: v3 synthetic mechanism submission-ready under a narrow claim.
 - The paper includes main comparison, estimator/interface ablations, observability stress, noise/latency/outlier stress, conditioning/fallback, drift recovery, planning/control utility, and negative controls.
 - Windowed SysID reaches 1.000 main success, so the claim is calibration as policy state rather than RLS-specific novelty.
 - Negative controls are explicit: shuffled state, scalar context, and matrix-not-policy are weaker than structured calibration-state controllers.
+- The final PDF now explicitly matches the VLA-v4 boxed-link convention for the link annotations present in this paper: green citation/URL boxes, no cyan boxes, and one-point borders.
 
 ## Remaining Limits
 

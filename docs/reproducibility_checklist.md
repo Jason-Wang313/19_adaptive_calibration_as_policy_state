@@ -12,6 +12,10 @@
 - [x] V3 `metadata.json` reports 1,681 seed rows and 14,614 episodes.
 - [x] Paper source is `paper/main.tex`.
 - [x] Canonical batch PDF path is `C:/Users/wangz/Downloads/19.pdf`.
+- [x] Final PDF page count: 25.
+- [x] Final PDF bytes: 433,568.
+- [x] Final PDF SHA256: `95CCDC986E46AE1EBA511A169CC3450DEFF76D0F214BF214C6AF05C83D9D604E`.
+- [x] VLA-style boxed links: 53 annotations; pages `[(2, 43), (3, 10)]`; colors green = 53, red = 0, cyan = 0; all borders `(0, 0, 1)`.
 - [x] `paper/main.pdf` is removed from git tracking after the canonical PDF copy is verified.
 - [ ] The long simulation took roughly 15 minutes locally; future runs should expect a multi-minute runtime.
 
